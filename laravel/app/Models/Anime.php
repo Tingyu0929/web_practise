@@ -1,0 +1,81 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Anime extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'title',
+        'image_url',
+        'categories',
+        'type',
+        'description',
+        'status',
+        'release_date',
+        'source_url'
+    ];
+
+    protected $casts = [
+        'categories' => 'array',
+        'release_date' => 'date',
+    ];
+
+    /**
+     * 關聯播放平台
+     */
+    public function platforms()
+    {
+        return $this->hasMany(AnimePlatform::class);
+    }
+
+    /**
+     * 取得特定地區的播放平台
+     */
+    public function platformsInRegion($region)
+    {
+        return $this->platforms()->where('region', $region);
+    }
+
+    /**
+     * 取得所有播放地區
+     */
+    public function getRegionsAttribute()
+    {
+        return $this->platforms()->distinct('region')->pluck('region')->toArray();
+    }
+
+    /**
+     * 取得所有播放平台
+     */
+    public function getPlatformsNamesAttribute()
+    {
+        return $this->platforms()->distinct('platform')->pluck('platform')->toArray();
+    }
+
+    /**
+     * 檢查是否在特定地區可觀看
+     */
+    public function isAvailableInRegion($region)
+    {
+        return $this->platforms()->where('region', $region)->exists();
+    }
+
+    /**
+     * 取得動漫在特定平台的可用性
+     */
+    public function getAvailabilityOnPlatform($platform, $region = null)
+    {
+        $query = $this->platforms()->where('platform', $platform);
+
+        if ($region) {
+            $query->where('region', $region);
+        }
+
+        return $query->first();
+    }
+}
