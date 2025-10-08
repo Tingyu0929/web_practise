@@ -26,11 +26,19 @@ class Anime extends Model
     ];
 
     /**
-     * 關聯播放平台
+     * 關聯播放平台（一對多關聯）
      */
     public function platforms()
     {
-        return $this->hasMany(AnimePlatform::class);
+        return $this->hasMany(AnimePlatform::class, 'anime_id');
+    }
+
+    /**
+     * 取得平台列表（用於顯示）
+     */
+    public function getPlatformsListAttribute()
+    {
+        return $this->platforms()->distinct('platform')->pluck('platform')->toArray();
     }
 
     /**

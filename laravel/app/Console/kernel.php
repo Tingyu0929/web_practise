@@ -23,7 +23,11 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+        // 每天中午12點執行爬蟲
+        $schedule->command('anime:scrape')
+            ->dailyAt('12:00')
+            ->timezone('Asia/Taipei')
+            ->appendOutputTo(storage_path('logs/scheduler.log'));
     }
 
     /**

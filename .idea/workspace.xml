@@ -5,22 +5,56 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="91896c9a-b6ca-49e1-b74a-e5df0a622726" name="更改" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/php.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/php.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/acg-fronted/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/acg-fronted/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/acg-fronted/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/acg-fronted/package.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/acg-fronted/src/App.vue" beforeDir="false" afterPath="$PROJECT_DIR$/acg-fronted/src/App.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/laravel/bootstrap/app.php" beforeDir="false" afterPath="$PROJECT_DIR$/laravel/bootstrap/app.php" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/acg-fronted/src/main.js" beforeDir="false" afterPath="$PROJECT_DIR$/acg-fronted/src/main.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/acg-fronted/src/style.css" beforeDir="false" afterPath="$PROJECT_DIR$/acg-fronted/src/style.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/laravel/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/laravel/.env.example" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/laravel/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/laravel/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/laravel/.idea/php.xml" beforeDir="false" afterPath="$PROJECT_DIR$/laravel/.idea/php.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/laravel/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/laravel/.idea/vcs.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/laravel/CHANGELOG.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/laravel/alternative_design.ps1" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/laravel/app/Console/kernel.php" beforeDir="false" afterPath="$PROJECT_DIR$/laravel/app/Console/kernel.php" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/laravel/app/Models/Anime.php" beforeDir="false" afterPath="$PROJECT_DIR$/laravel/app/Models/Anime.php" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/laravel/complete_fix.ps1" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/laravel/config/cache.php" beforeDir="false" afterPath="$PROJECT_DIR$/laravel/config/cache.php" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/laravel/config/database.php" beforeDir="false" afterPath="$PROJECT_DIR$/laravel/config/database.php" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/laravel/config/queue.php" beforeDir="false" afterPath="$PROJECT_DIR$/laravel/config/queue.php" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/laravel/config/session.php" beforeDir="false" afterPath="$PROJECT_DIR$/laravel/config/session.php" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/laravel/fix_migrations.bat" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/laravel/quick_test.ps1" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/laravel/routes/api.php" beforeDir="false" afterPath="$PROJECT_DIR$/laravel/routes/api.php" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/laravel/routes/console.php" beforeDir="false" afterPath="$PROJECT_DIR$/laravel/routes/console.php" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/laravel/setup_complete.bat" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/laravel/setup_complete.ps1" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/laravel/test_fixed_scraper.ps1" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/laravel/test_scraper.ps1" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/laravel/tests/Feature/ExampleTest.php" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/laravel/tests/Unit/ExampleTest.php" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
-  <component name="ComposerSettings">
+  <component name="ComposerSettings" synchronizationState="SYNCHRONIZE">
+    <pharConfigPath>$PROJECT_DIR$/laravel/composer.json</pharConfigPath>
     <execution />
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/Tingyu0929/web_practise.git",
+    "accountId": "a698c057-f8de-47af-bde8-dd1a0bc696eb"
+  }
+}]]></component>
   <component name="MarkdownSettingsMigration">
     <option name="stateVersion" value="1" />
   </component>
@@ -35,16 +69,32 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "RunOnceActivity.OpenProjectViewOnStart": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "WebServerToolWindowFactoryState": "false",
-    "git-widget-placeholder": "5-前後端串接",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Node.js.axios.js.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;WebServerToolWindowFactoryState&quot;: &quot;false&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;5-前後端串接&quot;,
+    &quot;last_opened_file_path&quot;: &quot;E:/Project/Web/animation-web&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;,
+    &quot;ts.external.directory.path&quot;: &quot;C:\\Users\\Stacy\\AppData\\Local\\Programs\\WebStorm\\plugins\\javascript-plugin\\jsLanguageServicesImpl\\external&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-js-predefined-d6986cc7102b-e03c56caf84a-JavaScript-WS-252.23892.411" />
+      </set>
+    </attachedChunks>
+  </component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
@@ -53,6 +103,10 @@
       <option name="presentableId" value="Default" />
       <updated>1750314919776</updated>
       <workItem from="1750314923785" duration="33000" />
+      <workItem from="1756261290081" duration="1413000" />
+      <workItem from="1756264507001" duration="183000" />
+      <workItem from="1759893234200" duration="9628000" />
+      <workItem from="1759914279721" duration="4630000" />
     </task>
     <servers />
   </component>

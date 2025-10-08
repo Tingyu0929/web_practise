@@ -18,6 +18,7 @@
 /public/storage
 /storage/*.key
 /storage/pail
+/storage/scraper_data
 /vendor
 Homestead.json
 Homestead.yaml

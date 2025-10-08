@@ -1,0 +1,147 @@
+# 基礎設施服務 (共用)
+services:
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: animation_web_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: animation_web
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_PASSWORD: root
+      MYSQL_USER: laravel
+    ports:
+      - "3308:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - animation_network
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: animation_web_redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - animation_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Laravel Backend
+  laravel:
+    build:
+      context: ./laravel
+      dockerfile: Dockerfile
+    container_name: animation_web_laravel
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./laravel:/var/www/html
+      - ./laravel/storage:/var/www/html/storage
+      - ./laravel/bootstrap/cache:/var/www/html/bootstrap/cache
+    ports:
+      - "2096:8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - animation_network
+    environment:
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: animation_web
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    healthcheck:
+      test: ["CMD", "php", "artisan", "tinker", "--execute=echo 'OK';"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Vue Frontend
+  frontend:
+    build:
+      context: ./acg-fronted
+      dockerfile: Dockerfile
+    container_name: animation_web_frontend
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./acg-fronted:/app
+      - /app/node_modules
+    ports:
+      - "8880:5173"
+    networks:
+      - animation_network
+    environment:
+      VITE_API_BASE_URL: http://404-studio.work:2096
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5173"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 定時爬蟲排程器
+  scheduler:
+    build:
+      context: ./laravel
+      dockerfile: Dockerfile
+    container_name: animation_web_scheduler
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./laravel:/var/www/html
+      - ./laravel/storage:/var/www/html/storage
+      - ./laravel/bootstrap/cache:/var/www/html/bootstrap/cache
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - animation_network
+    environment:
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: animation_web
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    command: >
+      sh -c "sed -i 's/^DB_HOST=.*/DB_HOST=mysql/' .env &&
+             sed -i 's/^REDIS_HOST=.*/REDIS_HOST=redis/' .env &&
+             php artisan config:clear &&
+             while true; do
+               php artisan schedule:run --verbose --no-interaction &
+               sleep 60
+             done"
+
+networks:
+  animation_network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
