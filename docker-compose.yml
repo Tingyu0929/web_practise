@@ -92,7 +92,7 @@ services:
     networks:
       - animation_network
     environment:
-      VITE_API_BASE_URL: http://404-studio.work:2096
+      VITE_API_BASE_URL: https://api.404-studio.work
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5173"]
       interval: 30s
