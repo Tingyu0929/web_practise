@@ -3,6 +3,12 @@ set -e
 
 echo "🚀 Starting Laravel Application..."
 
+# 安裝 Composer 依賴（如果 vendor 不存在）
+if [ ! -d "vendor" ] || [ ! -f "vendor/autoload.php" ]; then
+    echo "📦 Installing Composer dependencies..."
+    composer install --no-interaction --prefer-dist --optimize-autoloader
+fi
+
 # 複製 .env 檔案（如果不存在）
 if [ ! -f .env ]; then
     echo "📝 Creating .env file..."
