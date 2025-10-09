@@ -185,10 +185,24 @@
           <div v-if="selectedAnime.platforms && selectedAnime.platforms.length > 0" class="detail-section">
             <h3><i class="pi pi-desktop"></i> 播放平台</h3>
             <div class="platforms-list">
-              <Tag v-for="(platform, index) in selectedAnime.platforms" :key="index"
-                   :value="`${platform.platform} (${platform.region})`"
-                   severity="info"
-                   class="platform-tag" />
+              <div v-for="(platform, index) in selectedAnime.platforms" :key="index" class="platform-item">
+                <Button
+                  v-if="platform.notes"
+                  :label="`${platform.platform} (${platform.region})`"
+                  icon="pi pi-external-link"
+                  @click="openLink(platform.notes)"
+                  outlined
+                  size="small"
+                  severity="info"
+                  class="platform-btn"
+                />
+                <Tag
+                  v-else
+                  :value="`${platform.platform} (${platform.region})`"
+                  severity="info"
+                  class="platform-tag"
+                />
+              </div>
             </div>
           </div>
 
@@ -679,7 +693,15 @@ onMounted(() => {
   gap: 0.5rem;
 }
 
+.platform-item {
+  display: inline-block;
+}
+
 .platform-tag {
+  font-size: 0.85rem;
+}
+
+.platform-btn {
   font-size: 0.85rem;
 }
 

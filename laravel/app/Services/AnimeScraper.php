@@ -1567,9 +1567,60 @@ class AnimeScraper
     private function extractWeeklyScheduleFromDetail(Crawler $crawler)
     {
         try {
-            $text = $crawler->text();
+            // 方法1: 從 time_today 或 main_time class 提取
+            $timeToday = $crawler->filter('.time_today, .main_time');
 
-            // 擴展的匹配模式
+            if ($timeToday->count() > 0) {
+                $dayText = null;
+                $timeText = null;
+
+                // 提取星期
+                $dayNode = $timeToday->filter('.day, [class*="day"]');
+                if ($dayNode->count() > 0) {
+                    $dayText = trim($dayNode->text());
+                }
+
+                // 提取時間
+                $timeNode = $timeToday->filter('.time, [class*="time"]');
+                if ($timeNode->count() > 0) {
+                    $timeText = trim($timeNode->text());
+                }
+
+                // 如果沒有找到特定的 day/time class，嘗試直接從 time_today 獲取
+                if (!$dayText || !$timeText) {
+                    $fullText = trim($timeToday->text());
+                    // 匹配格式: "星期X HH:MM" 或 "週X HH:MM"
+                    if (preg_match('/(星期|週)([一二三四五六日天])\s*([\d]{1,2}[:：][\d]{2})/', $fullText, $matches)) {
+                        $dayText = $matches[2];
+                        $timeText = str_replace('：', ':', $matches[3]);
+                    }
+                }
+
+                if ($dayText && $timeText) {
+                    $schedule = "每週{$dayText} {$timeText}";
+                    Log::info('從 time_today 提取每周更新時間', ['schedule' => $schedule]);
+                    return $schedule;
+                }
+            }
+
+            // 方法2: 從 oa-time 提取（在 anime_streams 中）
+            $oaTime = $crawler->filter('.oa-time');
+            if ($oaTime->count() > 0) {
+                $timeText = trim($oaTime->first()->text());
+                if ($timeText && $timeText !== '-') {
+                    // 嘗試從周圍文字找到星期
+                    $text = $crawler->text();
+                    if (preg_match('/(星期|週|每週)([一二三四五六日天])[^\d]*' . preg_quote($timeText, '/') . '/', $text, $matches)) {
+                        $dayText = $matches[2];
+                        $schedule = "每週{$dayText} {$timeText}";
+                        Log::info('從 oa-time 提取每周更新時間', ['schedule' => $schedule]);
+                        return $schedule;
+                    }
+                }
+            }
+
+            // 方法3: 從純文字中提取（備用方法）
+            $text = $crawler->text();
             $patterns = [
                 '/每[週周]([一二三四五六日天])\s*([\d]{1,2}[:：][\d]{2})/',
                 '/星期([一二三四五六日天])\s*([\d]{1,2}[:：][\d]{2})/',
@@ -1582,8 +1633,9 @@ class AnimeScraper
                 if (preg_match($pattern, $text, $matches)) {
                     $day = $matches[1];
                     $time = str_replace('：', ':', $matches[2]);
-                    Log::info('從詳細頁面提取每周更新時間', ['schedule' => "每週{$day} {$time}"]);
-                    return "每週{$day} {$time}";
+                    $schedule = "每週{$day} {$time}";
+                    Log::info('從文字提取每周更新時間', ['schedule' => $schedule]);
+                    return $schedule;
                 }
             }
 
@@ -1595,75 +1647,106 @@ class AnimeScraper
     }
 
     /**
-     * 提取外部連結
+     * 提取外部連結（從 anime_link_group 結構中提取）
      */
     private function extractExternalLinks(Crawler $crawler)
     {
         try {
             $externalLinks = [];
-            $html = $crawler->html();
 
-            // 根據你提供的HTML結構，外部連結通常在特定區域
-            // 定義需要提取的外部連結類型及其識別模式
-            $linkPatterns = [
-                'official' => ['官方網站', 'official'],
-                'wikipedia_zh' => ['維基百科(中文)', 'wikipedia.org', 'zh.wikipedia'],
-                'wikipedia_ja' => ['維基百科(日文)', 'ja.wikipedia'],
-                'wikipedia_en' => ['維基百科(英文)', 'en.wikipedia'],
-                'twitter' => ['Twitter', 'X(Twitter)', 'twitter.com', 'x.com'],
-                'mal' => ['MyAnimeList', 'MAL', 'myanimelist.net'],
-                'anilist' => ['AniList', 'anilist.co'],
-                'filmarks' => ['Filmarks', 'filmarks.com'],
-                'ptt' => ['PTT', 'ptt.cc/bbs/C_Chat'],
-                'anidb' => ['AniDB', 'anidb.net'],
-                'bangumi' => ['Bangumi', 'bangumi.tv', 'bgm.tv'],
-            ];
+            // 方法1: 從 anime_link_group 和 anime_links 結構中提取
+            $linkGroups = $crawler->filter('.anime_link_group');
 
-            // 方法1: 從HTML中的a標籤提取連結
-            $crawler->filter('a[href]')->each(function (Crawler $link) use (&$externalLinks, $linkPatterns) {
-                $href = $link->attr('href');
-                $text = trim($link->text());
+            if ($linkGroups->count() > 0) {
+                $linkGroups->each(function (Crawler $linkGroup) use (&$externalLinks) {
+                    try {
+                        $links = $linkGroup->filter('.anime_links a');
 
-                // 檢查每種類型的連結
-                foreach ($linkPatterns as $type => $keywords) {
-                    foreach ($keywords as $keyword) {
-                        if (stripos($href, $keyword) !== false || stripos($text, $keyword) !== false) {
-                            if (!isset($externalLinks[$type])) {
-                                $externalLinks[$type] = [
-                                    'name' => $this->getExternalLinkName($type),
-                                    'url' => $href
-                                ];
-                                Log::info('找到外部連結', ['type' => $type, 'url' => $href]);
-                            }
-                            break 2;
+                        if ($links->count() > 0) {
+                            $links->each(function (Crawler $link) use (&$externalLinks) {
+                                try {
+                                    $url = $link->attr('href');
+                                    $text = trim($link->text());
+
+                                    // 移除 icon 標籤的文字
+                                    $iconText = $link->filter('i')->count() > 0
+                                        ? trim($link->filter('i')->text())
+                                        : '';
+
+                                    // 獲取連結的實際名稱（移除 icon 文字）
+                                    $linkName = str_replace($iconText, '', $text);
+                                    $linkName = trim($linkName);
+
+                                    // 判斷連結類型
+                                    $type = $this->identifyLinkType($url, $linkName);
+
+                                    if ($url && $linkName) {
+                                        // 使用 URL 作為 key 避免重複
+                                        if (!isset($externalLinks[$url])) {
+                                            $externalLinks[$url] = [
+                                                'name' => $linkName,
+                                                'url' => $url
+                                            ];
+
+                                            Log::info('從 anime_links 提取外部連結', [
+                                                'name' => $linkName,
+                                                'url' => $url,
+                                                'type' => $type
+                                            ]);
+                                        }
+                                    }
+                                } catch (\Exception $e) {
+                                    Log::error('提取單個外部連結失敗', ['message' => $e->getMessage()]);
+                                }
+                            });
                         }
+                    } catch (\Exception $e) {
+                        Log::error('處理 link_group 失敗', ['message' => $e->getMessage()]);
                     }
-                }
-            });
+                });
+            }
 
-            // 方法2: 從文字中提取URL（備用方法）
-            $text = $crawler->text();
+            // 方法2: 從所有 a 標籤中提取（備用方法）
+            if (empty($externalLinks)) {
+                Log::info('anime_link_group 未找到，使用備用方法');
 
-            // 提取所有URL
-            preg_match_all('/(https?:\/\/[^\s\)]+)/', $text, $urlMatches);
+                $linkPatterns = [
+                    'official' => ['官方網站', 'official', 'hp'],
+                    'wikipedia' => ['維基百科', 'Wikipedia', 'wikipedia.org'],
+                    'twitter' => ['Twitter', 'X(Twitter)', 'twitter.com', 'x.com'],
+                    'mal' => ['MyAnimeList', 'MAL', 'myanimelist.net'],
+                    'anilist' => ['AniList', 'anilist.co'],
+                    'anidb' => ['AniDB', 'anidb.net'],
+                    'bangumi' => ['Bangumi', 'bangumi.tv', 'bgm.tv'],
+                ];
 
-            if (!empty($urlMatches[1])) {
-                foreach ($urlMatches[1] as $url) {
+                $crawler->filter('a[href]')->each(function (Crawler $link) use (&$externalLinks, $linkPatterns) {
+                    $href = $link->attr('href');
+                    $text = trim($link->text());
+
+                    // 跳過站內連結和播放平台連結
+                    if (strpos($href, 'acgsecrets.hk') !== false ||
+                        strpos($href, 'viu.com') !== false ||
+                        strpos($href, 'iq.com') !== false ||
+                        strpos($href, 'gamer.com.tw') !== false) {
+                        return;
+                    }
+
                     foreach ($linkPatterns as $type => $keywords) {
                         foreach ($keywords as $keyword) {
-                            if (stripos($url, $keyword) !== false) {
-                                if (!isset($externalLinks[$type])) {
-                                    $externalLinks[$type] = [
-                                        'name' => $this->getExternalLinkName($type),
-                                        'url' => $url
+                            if (stripos($href, $keyword) !== false || stripos($text, $keyword) !== false) {
+                                if (!isset($externalLinks[$href])) {
+                                    $externalLinks[$href] = [
+                                        'name' => $text ?: $this->getExternalLinkName($type),
+                                        'url' => $href
                                     ];
-                                    Log::info('從文字提取外部連結', ['type' => $type, 'url' => $url]);
+                                    Log::info('找到外部連結', ['type' => $type, 'name' => $text, 'url' => $href]);
                                 }
                                 break 2;
                             }
                         }
                     }
-                }
+                });
             }
 
             return !empty($externalLinks) ? array_values($externalLinks) : null;
@@ -1671,6 +1754,32 @@ class AnimeScraper
             Log::error('提取外部連結失敗', ['message' => $e->getMessage()]);
             return null;
         }
+    }
+
+    /**
+     * 識別連結類型
+     */
+    private function identifyLinkType($url, $name)
+    {
+        $patterns = [
+            'official' => ['官方', 'official', 'hp'],
+            'wikipedia' => ['wikipedia', '維基'],
+            'twitter' => ['twitter', 'x.com'],
+            'mal' => ['myanimelist'],
+            'anilist' => ['anilist'],
+            'anidb' => ['anidb'],
+            'bangumi' => ['bangumi', 'bgm.tv'],
+        ];
+
+        foreach ($patterns as $type => $keywords) {
+            foreach ($keywords as $keyword) {
+                if (stripos($url, $keyword) !== false || stripos($name, $keyword) !== false) {
+                    return $type;
+                }
+            }
+        }
+
+        return 'other';
     }
 
     /**
@@ -1696,67 +1805,105 @@ class AnimeScraper
     }
 
     /**
-     * 從詳細頁面提取播放平台
+     * 從詳細頁面提取播放平台（從 anime_streams 結構中提取）
      */
     private function extractPlatformsFromDetail(Crawler $crawler)
     {
         try {
             $platforms = [];
-            $text = $crawler->text();
 
-            // 擴展的平台映射（包含更多平台和多地區支援）
-            $platformMapping = [
-                // 串流平台
-                'Netflix' => ['Netflix', ['香港', '台灣', '日本']],
-                'Disney+' => ['Disney+', ['香港', '台灣']],
-                'Disney＋' => ['Disney+', ['香港', '台灣']],
-                'Amazon Prime' => ['Amazon Prime Video', ['香港', '台灣', '日本']],
-                'Bilibili' => ['Bilibili', ['中國大陸', '香港']],
-                '巴哈姆特動畫瘋' => ['巴哈姆特動畫瘋', ['台灣']],
-                'myTV SUPER' => ['myTV SUPER', ['香港']],
-                'Crunchyroll' => ['Crunchyroll', ['香港', '台灣']],
-                'Ani-One' => ['Ani-One YouTube', ['香港', '台灣']],
-                'viu' => ['viu.com', ['香港']],
-                'ViuTV' => ['viu.com', ['香港']],
-                'LINE TV' => ['LINE TV', ['台灣']],
-                'friDay' => ['friDay影音', ['台灣']],
-                'KKTV' => ['KKTV', ['台灣']],
-                'LiTV' => ['LiTV線上影視', ['台灣']],
-                'HBO GO' => ['HBO GO', ['香港', '台灣']],
-                'Hulu' => ['Hulu', ['日本']],
-            ];
+            // 方法1: 從 anime_streams 結構中提取
+            $streamAreas = $crawler->filter('.anime_streams');
 
-            // 檢查每個平台
-            foreach ($platformMapping as $platformText => $platformInfo) {
-                if (mb_strpos($text, $platformText) !== false) {
-                    $platformName = $platformInfo[0];
-                    $possibleRegions = $platformInfo[1];
+            if ($streamAreas->count() > 0) {
+                $streamAreas->each(function (Crawler $streamArea) use (&$platforms) {
+                    try {
+                        // 提取地區
+                        $region = $streamArea->filter('.stream-area')->count() > 0
+                            ? trim($streamArea->filter('.stream-area')->text())
+                            : null;
 
-                    // 嘗試檢測具體地區
-                    $detectedRegions = [];
-                    foreach ($possibleRegions as $region) {
-                        if (mb_strpos($text, $region) !== false) {
-                            $detectedRegions[] = $region;
+                        if (!$region) {
+                            return;
                         }
+
+                        // 提取播放時間
+                        $streamTime = null;
+                        $timeNodes = $streamArea->filter('.stream-time .oa-time');
+                        if ($timeNodes->count() > 0) {
+                            $streamTime = trim($timeNodes->first()->text());
+                            if ($streamTime === '-') {
+                                $streamTime = null;
+                            }
+                        }
+
+                        // 提取平台連結
+                        $streamSites = $streamArea->filter('.stream-sites a.stream-site');
+                        if ($streamSites->count() > 0) {
+                            $streamSites->each(function (Crawler $site) use (&$platforms, $region, $streamTime) {
+                                try {
+                                    $platformName = $site->filter('.steam-site-name')->count() > 0
+                                        ? trim($site->filter('.steam-site-name')->text())
+                                        : null;
+
+                                    $platformUrl = $site->attr('href') ?: null;
+
+                                    if ($platformName) {
+                                        $platforms[] = [
+                                            'region' => $region,
+                                            'platform' => $platformName,
+                                            'availability_status' => 'available',
+                                            'notes' => $platformUrl // 暫時把 URL 存在 notes 欄位
+                                        ];
+
+                                        Log::info('從 anime_streams 提取平台', [
+                                            'region' => $region,
+                                            'platform' => $platformName,
+                                            'url' => $platformUrl,
+                                            'time' => $streamTime
+                                        ]);
+                                    }
+                                } catch (\Exception $e) {
+                                    Log::error('提取單個平台失敗', ['message' => $e->getMessage()]);
+                                }
+                            });
+                        }
+                    } catch (\Exception $e) {
+                        Log::error('處理 stream-area 失敗', ['message' => $e->getMessage()]);
                     }
+                });
+            }
 
-                    // 如果沒有檢測到具體地區，使用所有可能的地區
-                    if (empty($detectedRegions)) {
-                        $detectedRegions = $possibleRegions;
-                    }
+            // 方法2: 備用方法 - 從文字中提取（如果方法1失敗）
+            if (empty($platforms)) {
+                Log::info('anime_streams 未找到，使用備用方法');
+                $text = $crawler->text();
 
-                    // 為每個地區創建平台記錄
-                    foreach ($detectedRegions as $region) {
-                        $platforms[] = [
-                            'region' => $region,
-                            'platform' => $platformName,
-                            'availability_status' => 'available'
-                        ];
+                $platformMapping = [
+                    '巴哈姆特動畫瘋' => '巴哈姆特動畫瘋',
+                    'viu.com' => 'viu.com',
+                    '愛奇藝' => '愛奇藝',
+                    '木棉花YouTube' => '木棉花YouTube',
+                    'Netflix' => 'Netflix',
+                    'Disney+' => 'Disney+',
+                    'Bilibili' => 'Bilibili',
+                    'Ani-One' => 'Ani-One YouTube',
+                ];
 
-                        Log::info('從詳細頁面找到平台', [
-                            'platform' => $platformName,
-                            'region' => $region
-                        ]);
+                $regions = ['香港', '台灣', '中國大陸', '日本'];
+
+                foreach ($regions as $region) {
+                    if (mb_strpos($text, $region) !== false) {
+                        foreach ($platformMapping as $keyword => $platformName) {
+                            if (mb_strpos($text, $keyword) !== false) {
+                                $platforms[] = [
+                                    'region' => $region,
+                                    'platform' => $platformName,
+                                    'availability_status' => 'available',
+                                    'notes' => null
+                                ];
+                            }
+                        }
                     }
                 }
             }
