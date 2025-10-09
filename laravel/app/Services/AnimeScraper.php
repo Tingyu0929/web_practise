@@ -48,7 +48,14 @@ class AnimeScraper
             Log::info('嘗試使用 Guzzle 爬取', ['url' => $url]);
 
             $response = $this->client->get($url);
-            return $response->getBody()->getContents();
+            $html = $response->getBody()->getContents();
+
+            // 確保正確的 UTF-8 編碼
+            if (!mb_check_encoding($html, 'UTF-8')) {
+                $html = mb_convert_encoding($html, 'UTF-8', mb_detect_encoding($html, ['UTF-8', 'ISO-8859-1', 'ASCII', 'Windows-1252'], true));
+            }
+
+            return $html;
 
         } catch (\Exception $e) {
             Log::warning('Guzzle 請求失敗', ['error' => $e->getMessage()]);
@@ -67,7 +74,14 @@ class AnimeScraper
             ]);
 
             $response = $simpleClient->get($url);
-            return $response->getBody()->getContents();
+            $html = $response->getBody()->getContents();
+
+            // 確保正確的 UTF-8 編碼
+            if (!mb_check_encoding($html, 'UTF-8')) {
+                $html = mb_convert_encoding($html, 'UTF-8', mb_detect_encoding($html, ['UTF-8', 'ISO-8859-1', 'ASCII', 'Windows-1252'], true));
+            }
+
+            return $html;
 
         } catch (\Exception $e) {
             Log::warning('簡化 Guzzle 請求失敗', ['error' => $e->getMessage()]);
@@ -95,6 +109,10 @@ class AnimeScraper
             $html = file_get_contents($url, false, $context);
 
             if ($html !== false) {
+                // 確保正確的 UTF-8 編碼
+                if (!mb_check_encoding($html, 'UTF-8')) {
+                    $html = mb_convert_encoding($html, 'UTF-8', mb_detect_encoding($html, ['UTF-8', 'ISO-8859-1', 'ASCII', 'Windows-1252'], true));
+                }
                 return $html;
             }
 
@@ -128,6 +146,10 @@ class AnimeScraper
             curl_close($ch);
 
             if ($html !== false && $httpCode === 200) {
+                // 確保正確的 UTF-8 編碼
+                if (!mb_check_encoding($html, 'UTF-8')) {
+                    $html = mb_convert_encoding($html, 'UTF-8', mb_detect_encoding($html, ['UTF-8', 'ISO-8859-1', 'ASCII', 'Windows-1252'], true));
+                }
                 return $html;
             }
 
@@ -333,17 +355,17 @@ class AnimeScraper
         ]);
 
         return [
-            'title' => $title,
+            'title' => $this->cleanUtf8($title),
             'image_url' => $imageUrl,
             'categories' => $categories,
             'type' => $type,
-            'description' => $description,
+            'description' => $description ? $this->cleanUtf8($description) : null,
             'release_date' => $releaseDate,
             'platforms' => $platforms,
             'source_url' => $detailUrl ?: request()->url(),
-            'weekly_schedule' => $weeklySchedule,
+            'weekly_schedule' => $weeklySchedule ? $this->cleanUtf8($weeklySchedule) : null,
             'voice_actors' => $voiceActors,
-            'copyright' => $copyright,
+            'copyright' => $copyright ? $this->cleanUtf8($copyright) : null,
             'trailer_url' => $trailerUrl,
             'video_links' => $videoLinks,
             'staff' => $staff,
@@ -1211,6 +1233,27 @@ class AnimeScraper
     }
 
     /**
+     * 清理 UTF-8 編碼，移除不正確的字元
+     */
+    private function cleanUtf8($string)
+    {
+        if (empty($string)) {
+            return $string;
+        }
+
+        // 方法1: 使用 mb_convert_encoding 清理
+        $cleaned = mb_convert_encoding($string, 'UTF-8', 'UTF-8');
+
+        // 方法2: 移除非 UTF-8 字元
+        $cleaned = iconv('UTF-8', 'UTF-8//IGNORE', $cleaned);
+
+        // 方法3: 使用 preg_replace 移除無效字元
+        $cleaned = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $cleaned);
+
+        return $cleaned;
+    }
+
+    /**
      * 提取每周更新時間
      */
     private function extractWeeklySchedule(Crawler $container)
@@ -1296,6 +1339,10 @@ class AnimeScraper
                             }
 
                             if (!$containsStaffKeyword && mb_strlen($character) > 0 && mb_strlen($actor) > 0) {
+                                // 清理 UTF-8 編碼
+                                $character = $this->cleanUtf8($character);
+                                $actor = $this->cleanUtf8($actor);
+
                                 $voiceActors[] = [
                                     'character' => $character,
                                     'actor' => $actor
@@ -1481,6 +1528,10 @@ class AnimeScraper
                             }
 
                             if ($isStaff && !$hasCharacter && mb_strlen($position) > 1 && mb_strlen($name) > 1) {
+                                // 清理 UTF-8 編碼
+                                $position = $this->cleanUtf8($position);
+                                $name = $this->cleanUtf8($name);
+
                                 $staff[] = [
                                     'position' => $position,
                                     'name' => $name

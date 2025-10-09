@@ -4,7 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="91896c9a-b6ca-49e1-b74a-e5df0a622726" name="更改" comment="更改" />
+    <list default="true" id="91896c9a-b6ca-49e1-b74a-e5df0a622726" name="更改" comment="更改">
+      <change beforePath="$PROJECT_DIR$/laravel/app/Services/AnimeScraper.php" beforeDir="false" afterPath="$PROJECT_DIR$/laravel/app/Services/AnimeScraper.php" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -81,7 +83,7 @@
       <workItem from="1756264507001" duration="183000" />
       <workItem from="1759893234200" duration="9628000" />
       <workItem from="1759914279721" duration="12983000" />
-      <workItem from="1759969163366" duration="19249000" />
+      <workItem from="1759969163366" duration="20120000" />
     </task>
     <task id="LOCAL-00001" summary="更改">
       <option name="closed" value="true" />
@@ -235,7 +237,15 @@
       <option name="project" value="LOCAL" />
       <updated>1760022623027</updated>
     </task>
-    <option name="localTasksCounter" value="20" />
+    <task id="LOCAL-00020" summary="更改">
+      <option name="closed" value="true" />
+      <created>1760023157456</created>
+      <option name="number" value="00020" />
+      <option name="presentableId" value="LOCAL-00020" />
+      <option name="project" value="LOCAL" />
+      <updated>1760023157456</updated>
+    </task>
+    <option name="localTasksCounter" value="21" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
