@@ -1250,36 +1250,52 @@ class AnimeScraper
             $text = $container->text();
             $voiceActors = [];
 
-            // 方法1: 尋找配音員或Cast標題後的內容（更精確的分隔）
+            // 方法1: 尋找配音員或Cast標題，並在遇到製作人員關鍵字時停止
             $patterns = [
-                '/配音員[：:\s]*\n?(.*?)(?:\n\s*(?:製作人員|Staff|原作|導演|劇本|音樂|動畫製作|主題曲|OP|ED))/us',
-                '/Cast[：:\s]*\n?(.*?)(?:\n\s*(?:Staff|製作人員|原作|導演|劇本))/us',
+                '/配音員[：:\s]*\n?(.*?)(?=(?:製作人員|Staff|原作[：:]|導演[：:]|劇本統籌|主題曲|OP[：:]|ED[：:]))/us',
+                '/Cast[：:\s]*\n?(.*?)(?=(?:Staff|製作人員|原作[：:]|導演[：:]))/us',
             ];
 
             foreach ($patterns as $pattern) {
                 if (preg_match($pattern, $text, $matches)) {
                     $actorsText = trim($matches[1]);
 
-                    // 分割配音員資訊（格式：角色名：配音員名 或 角色名／怪獸８号：配音員名）
-                    // 使用更精確的模式，避免匹配到製作人員
-                    preg_match_all('/([^\n：:]+?)[：:]([^\n：:]+?)(?:\n|$)/u', $actorsText, $actorMatches, PREG_SET_ORDER);
+                    // 分行處理，每行格式：角色名：配音員名
+                    $lines = preg_split('/\n+/', $actorsText);
 
-                    foreach ($actorMatches as $match) {
-                        if (count($match) >= 3) {
+                    foreach ($lines as $line) {
+                        $line = trim($line);
+                        if (empty($line)) continue;
+
+                        // 檢查是否包含製作關鍵字（表示已經進入製作人員區域）
+                        $staffKeywords = ['原作', '導演', '劇本統籌', '劇本', '編劇', '監督', '設計', '音樂', '製作', '攝影', '剪接', '音效'];
+                        $isStaffLine = false;
+                        foreach ($staffKeywords as $keyword) {
+                            if (mb_strpos($line, $keyword . '：') !== false || mb_strpos($line, $keyword . ':') !== false) {
+                                $isStaffLine = true;
+                                break;
+                            }
+                        }
+
+                        if ($isStaffLine) {
+                            break; // 遇到製作人員，停止處理
+                        }
+
+                        // 匹配格式：角色名：配音員名
+                        if (preg_match('/^([^：:]+)[：:](.+)$/', $line, $match)) {
                             $character = trim($match[1]);
                             $actor = trim($match[2]);
 
-                            // 過濾掉可能是製作人員的項目
-                            $staffKeywords = ['原作', '導演', '劇本', '編劇', '監督', '設計', '音樂', '製作', '攝影', '剪接', '音效'];
-                            $isStaff = false;
+                            // 確保不包含製作相關詞彙
+                            $containsStaffKeyword = false;
                             foreach ($staffKeywords as $keyword) {
                                 if (mb_strpos($character, $keyword) !== false || mb_strpos($actor, $keyword) !== false) {
-                                    $isStaff = true;
+                                    $containsStaffKeyword = true;
                                     break;
                                 }
                             }
 
-                            if (!$isStaff && mb_strlen($character) > 0 && mb_strlen($actor) > 0) {
+                            if (!$containsStaffKeyword && mb_strlen($character) > 0 && mb_strlen($actor) > 0) {
                                 $voiceActors[] = [
                                     'character' => $character,
                                     'actor' => $actor
@@ -1289,7 +1305,7 @@ class AnimeScraper
                     }
 
                     if (!empty($voiceActors)) {
-                        Log::info('成功提取配音員', ['count' => count($voiceActors)]);
+                        Log::info('成功提取配音員', ['count' => count($voiceActors), 'actors' => $voiceActors]);
                         break;
                     }
                 }
@@ -1405,23 +1421,22 @@ class AnimeScraper
             $text = $container->text();
             $staff = [];
 
-            // 方法1: 尋找製作人員或Staff標題後的內容（更精確的分隔）
+            // 尋找製作人員區域 - 從"原作"或"Staff"開始，到"主題曲"或其他分隔標記結束
             $patterns = [
-                '/(?:製作人員|Staff)[：:\s]*\n?(.*?)(?:\n\s*(?:配音員|Cast|主題曲|OP|ED|外部|播放|©))/us',
-                '/(?:原作|導演|劇本)[：:](.*?)(?:\n\s*(?:配音員|Cast|主題曲|OP|ED|外部|播放))/us',
+                '/(?:製作人員|Staff)[：:\s]*\n?(.*?)(?=(?:主題曲|OP[：:]|ED[：:]|外部連結|播放平台|©))/us',
+                '/(?:原作[：:])(.*?)(?=(?:主題曲|OP[：:]|ED[：:]|外部連結|播放平台|©))/us',
             ];
 
             foreach ($patterns as $pattern) {
                 if (preg_match($pattern, $text, $matches)) {
                     $staffText = trim($matches[1]);
 
-                    // 如果第二個模式匹配到，需要把匹配的第一行也加進去
-                    if (strpos($pattern, '原作') !== false) {
-                        // 找到"原作"之前的位置，從那裡開始提取
+                    // 如果使用第二個模式，需要包含"原作"這一行
+                    if (strpos($pattern, '原作[：:]') !== false) {
+                        // 找到原作的位置
                         $pos = mb_strpos($text, '原作');
                         if ($pos !== false) {
-                            // 找到配音員的位置作為結束
-                            $endPatterns = ['配音員', 'Cast', '主題曲', 'OP', 'ED'];
+                            $endPatterns = ['主題曲', 'OP：', 'ED：', '外部連結', '播放平台', '©'];
                             $endPos = mb_strlen($text);
                             foreach ($endPatterns as $endPattern) {
                                 $tempPos = mb_strpos($text, $endPattern, $pos);
@@ -1433,16 +1448,20 @@ class AnimeScraper
                         }
                     }
 
-                    // 分割製作人員資訊（格式：職位：人名）
-                    preg_match_all('/([^\n：:]+?)[：:]([^\n：:]+?)(?:\n|$)/u', $staffText, $staffMatches, PREG_SET_ORDER);
+                    // 分行處理
+                    $lines = preg_split('/\n+/', $staffText);
 
-                    foreach ($staffMatches as $match) {
-                        if (count($match) >= 3) {
+                    foreach ($lines as $line) {
+                        $line = trim($line);
+                        if (empty($line)) continue;
+
+                        // 匹配格式：職位：人名
+                        if (preg_match('/^([^：:]+)[：:](.+)$/', $line, $match)) {
                             $position = trim($match[1]);
                             $name = trim($match[2]);
 
-                            // 只接受包含製作相關關鍵字的項目
-                            $staffKeywords = ['原作', '導演', '劇本', '編劇', '監督', '設計', '音樂', '製作', '攝影', '剪接', '音效', '統籌', '作畫'];
+                            // 檢查是否包含製作相關關鍵字
+                            $staffKeywords = ['原作', '導演', '劇本統籌', '劇本', '編劇', '監督', '設計', '音樂', '製作', '攝影', '剪接', '音效', '統籌', '作畫', '3D'];
                             $isStaff = false;
                             foreach ($staffKeywords as $keyword) {
                                 if (mb_strpos($position, $keyword) !== false) {
@@ -1451,7 +1470,7 @@ class AnimeScraper
                                 }
                             }
 
-                            // 過濾掉太短或包含角色名的內容（配音員通常有角色名）
+                            // 排除配音員（通常包含角色標記）
                             $characterKeywords = ['／', '/', '号'];
                             $hasCharacter = false;
                             foreach ($characterKeywords as $keyword) {
@@ -1471,7 +1490,7 @@ class AnimeScraper
                     }
 
                     if (!empty($staff)) {
-                        Log::info('成功提取製作人員', ['count' => count($staff)]);
+                        Log::info('成功提取製作人員', ['count' => count($staff), 'staff' => $staff]);
                         break;
                     }
                 }
@@ -1490,21 +1509,58 @@ class AnimeScraper
     private function extractDetailUrl(Crawler $container)
     {
         try {
-            // 方法1: 尋找包含動漫標題的連結
-            $links = $container->filter('a[href*="acgsecrets.hk"]');
+            // 方法1: 尋找所有連結
+            $links = $container->filter('a[href]');
 
             if ($links->count() > 0) {
-                $href = $links->first()->attr('href');
+                foreach ($links as $linkNode) {
+                    $link = new Crawler($linkNode);
+                    $href = $link->attr('href');
 
-                // 如果是相對路徑，轉換為絕對路徑
-                if (strpos($href, 'http') !== 0) {
-                    $href = $this->baseUrl . $href;
+                    // 檢查是否是動漫詳細頁面的連結
+                    // 詳細頁面通常包含 /bangumi/ 或 /anime/ 路徑
+                    if (strpos($href, '/bangumi/') !== false || strpos($href, '/anime/') !== false) {
+                        // 排除列表頁面
+                        if (preg_match('/\/bangumi\/\d{6}\/?$/', $href)) {
+                            continue; // 這是列表頁面，跳過
+                        }
+
+                        // 如果是相對路徑，轉換為絕對路徑
+                        if (strpos($href, 'http') !== 0) {
+                            if (strpos($href, '/') === 0) {
+                                $href = $this->baseUrl . $href;
+                            } else {
+                                $href = $this->baseUrl . '/' . $href;
+                            }
+                        }
+
+                        Log::info('找到詳細頁面URL', ['url' => $href]);
+                        return $href;
+                    }
                 }
-
-                Log::info('找到詳細頁面URL', ['url' => $href]);
-                return $href;
             }
 
+            // 方法2: 尋找圖片的父連結
+            $imageLinks = $container->filter('img[src*="static.acgsecrets.hk"]');
+            if ($imageLinks->count() > 0) {
+                $imgParent = $imageLinks->first()->parents()->filter('a[href]');
+                if ($imgParent->count() > 0) {
+                    $href = $imgParent->first()->attr('href');
+
+                    if (strpos($href, 'http') !== 0) {
+                        if (strpos($href, '/') === 0) {
+                            $href = $this->baseUrl . $href;
+                        } else {
+                            $href = $this->baseUrl . '/' . $href;
+                        }
+                    }
+
+                    Log::info('從圖片父連結找到詳細頁面URL', ['url' => $href]);
+                    return $href;
+                }
+            }
+
+            Log::warning('未找到詳細頁面URL');
             return null;
         } catch (\Exception $e) {
             Log::error('提取詳細URL失敗', ['message' => $e->getMessage()]);

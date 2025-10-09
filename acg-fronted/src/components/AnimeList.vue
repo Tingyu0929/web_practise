@@ -249,17 +249,6 @@
               />
             </div>
           </div>
-
-          <!-- 來源連結 -->
-          <div v-if="selectedAnime.source_url" class="detail-section">
-            <Button
-              label="查看原始資料"
-              icon="pi pi-link"
-              @click="openLink(selectedAnime.source_url)"
-              text
-              size="small"
-            />
-          </div>
         </div>
       </div>
     </Dialog>
