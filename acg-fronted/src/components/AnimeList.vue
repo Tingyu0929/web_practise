@@ -59,6 +59,7 @@
         v-for="anime in animes"
         :key="anime.id"
         class="anime-card"
+        @click="showAnimeDetail(anime)"
       >
         <template #header>
           <div class="anime-image">
@@ -67,14 +68,17 @@
               :alt="anime.title"
               @error="handleImageError"
             />
+            <!-- 每周更新時間標籤 -->
+            <div v-if="anime.weekly_schedule" class="weekly-schedule-badge">
+              <i class="pi pi-clock"></i>
+              <span>{{ anime.weekly_schedule }}</span>
+            </div>
             <div class="anime-overlay">
               <Button
-                icon="pi pi-external-link"
+                icon="pi pi-info-circle"
+                label="詳細資訊"
                 rounded
-                text
                 severity="secondary"
-                @click="openAnimeLink(anime.source_url)"
-                v-if="anime.source_url"
               />
             </div>
           </div>
@@ -92,14 +96,125 @@
               <i class="pi pi-tag"></i>
               <span>{{ anime.type }}</span>
             </div>
-            <div class="info-item" v-if="anime.status">
-              <i class="pi pi-info-circle"></i>
-              <span>{{ anime.status }}</span>
+            <div class="info-item" v-if="anime.release_date">
+              <i class="pi pi-calendar"></i>
+              <span>{{ formatDate(anime.release_date) }}</span>
             </div>
           </div>
         </template>
       </Card>
     </div>
+
+    <!-- 動漫詳細資訊彈出視窗 -->
+    <Dialog
+      v-model:visible="showDetailDialog"
+      :header="selectedAnime?.title"
+      :modal="true"
+      :style="{ width: '50vw' }"
+      :breakpoints="{ '960px': '75vw', '641px': '90vw' }"
+    >
+      <div v-if="selectedAnime" class="anime-detail">
+        <div class="detail-image">
+          <img :src="selectedAnime.image_url" :alt="selectedAnime.title" />
+        </div>
+
+        <div class="detail-content">
+          <!-- 基本資訊 -->
+          <div class="detail-section">
+            <h3><i class="pi pi-info-circle"></i> 基本資訊</h3>
+            <div class="detail-grid">
+              <div v-if="selectedAnime.type" class="detail-item">
+                <strong>類型：</strong>{{ selectedAnime.type }}
+              </div>
+              <div v-if="selectedAnime.release_date" class="detail-item">
+                <strong>發布日期：</strong>{{ formatDate(selectedAnime.release_date) }}
+              </div>
+              <div v-if="selectedAnime.weekly_schedule" class="detail-item">
+                <strong>更新時間：</strong>{{ selectedAnime.weekly_schedule }}
+              </div>
+              <div v-if="selectedAnime.copyright" class="detail-item">
+                <strong>版權：</strong>{{ selectedAnime.copyright }}
+              </div>
+            </div>
+          </div>
+
+          <!-- 描述 -->
+          <div v-if="selectedAnime.description" class="detail-section">
+            <h3><i class="pi pi-book"></i> 故事簡介</h3>
+            <p>{{ selectedAnime.description }}</p>
+          </div>
+
+          <!-- 配音員 -->
+          <div v-if="selectedAnime.voice_actors && selectedAnime.voice_actors.length > 0" class="detail-section">
+            <h3><i class="pi pi-users"></i> 配音員</h3>
+            <div class="voice-actors-list">
+              <div v-for="(actor, index) in selectedAnime.voice_actors" :key="index" class="actor-item">
+                <strong>{{ actor.character }}：</strong>{{ actor.actor }}
+              </div>
+            </div>
+          </div>
+
+          <!-- 製作人員 -->
+          <div v-if="selectedAnime.staff && selectedAnime.staff.length > 0" class="detail-section">
+            <h3><i class="pi pi-briefcase"></i> 製作人員</h3>
+            <div class="staff-list">
+              <div v-for="(member, index) in selectedAnime.staff" :key="index" class="staff-item">
+                <strong>{{ member.position }}：</strong>{{ member.name }}
+              </div>
+            </div>
+          </div>
+
+          <!-- 播放平台 -->
+          <div v-if="selectedAnime.platforms && selectedAnime.platforms.length > 0" class="detail-section">
+            <h3><i class="pi pi-desktop"></i> 播放平台</h3>
+            <div class="platforms-list">
+              <Tag v-for="(platform, index) in selectedAnime.platforms" :key="index"
+                   :value="`${platform.platform} (${platform.region})`"
+                   severity="info"
+                   class="platform-tag" />
+            </div>
+          </div>
+
+          <!-- 預告片 -->
+          <div v-if="selectedAnime.trailer_url" class="detail-section">
+            <h3><i class="pi pi-play"></i> 預告片</h3>
+            <Button
+              :label="'觀看預告片'"
+              icon="pi pi-external-link"
+              @click="openLink(selectedAnime.trailer_url)"
+              outlined
+            />
+          </div>
+
+          <!-- 影片連結 -->
+          <div v-if="selectedAnime.video_links && selectedAnime.video_links.length > 0" class="detail-section">
+            <h3><i class="pi pi-video"></i> 相關影片</h3>
+            <div class="video-links">
+              <Button
+                v-for="(link, index) in selectedAnime.video_links"
+                :key="index"
+                :label="`影片 ${index + 1}`"
+                icon="pi pi-external-link"
+                @click="openLink(link)"
+                text
+                size="small"
+              />
+            </div>
+          </div>
+
+          <!-- 來源連結 -->
+          <div v-if="selectedAnime.source_url" class="detail-section">
+            <Button
+              label="查看原始資料"
+              icon="pi pi-link"
+              @click="openLink(selectedAnime.source_url)"
+              text
+              size="small"
+            />
+          </div>
+        </div>
+      </div>
+    </Dialog>
 
     <!-- 無資料 -->
     <div v-else class="no-data">
@@ -129,6 +244,8 @@ import Select from 'primevue/select'
 import Button from 'primevue/button'
 import Paginator from 'primevue/paginator'
 import ProgressSpinner from 'primevue/progressspinner'
+import Dialog from 'primevue/dialog'
+import Tag from 'primevue/tag'
 
 // 狀態
 const animes = ref([])
@@ -140,6 +257,10 @@ const selectedPlatform = ref(null)
 const currentPage = ref(1)
 const perPage = ref(24)
 const totalRecords = ref(0)
+
+// 詳細資訊對話框狀態
+const showDetailDialog = ref(false)
+const selectedAnime = ref(null)
 
 // 計算屬性
 const totalPages = computed(() => Math.ceil(totalRecords.value / perPage.value))
@@ -222,10 +343,21 @@ const clearFilters = () => {
   fetchAnimes()
 }
 
-const openAnimeLink = (url) => {
+const showAnimeDetail = (anime) => {
+  selectedAnime.value = anime
+  showDetailDialog.value = true
+}
+
+const openLink = (url) => {
   if (url) {
     window.open(url, '_blank')
   }
+}
+
+const formatDate = (dateString) => {
+  if (!dateString) return ''
+  const date = new Date(dateString)
+  return date.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' })
 }
 
 const handleImageError = (event) => {
@@ -414,6 +546,132 @@ onMounted(() => {
   margin-top: 2rem;
 }
 
+/* 每周更新時間標籤 */
+.weekly-schedule-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(74, 144, 226, 0.9);
+  color: white;
+  padding: 0.4rem 0.8rem;
+  border-radius: 1rem;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  z-index: 1;
+  backdrop-filter: blur(4px);
+}
+
+.weekly-schedule-badge i {
+  font-size: 0.7rem;
+}
+
+/* 詳細資訊對話框 */
+.anime-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.detail-image {
+  width: 100%;
+  max-height: 400px;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.detail-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.detail-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.detail-section {
+  border-bottom: 1px solid var(--color-border, #333);
+  padding-bottom: 1rem;
+}
+
+.detail-section:last-child {
+  border-bottom: none;
+}
+
+.detail-section h3 {
+  color: var(--color-text);
+  font-size: 1.1rem;
+  margin-bottom: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.detail-section h3 i {
+  color: var(--color-primary, #4a90e2);
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.8rem;
+}
+
+.detail-item {
+  color: var(--color-text-secondary);
+  font-size: 0.95rem;
+}
+
+.detail-item strong {
+  color: var(--color-text);
+  margin-right: 0.5rem;
+}
+
+.detail-section p {
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.voice-actors-list,
+.staff-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 0.6rem;
+}
+
+.actor-item,
+.staff-item {
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+  padding: 0.4rem 0;
+}
+
+.actor-item strong,
+.staff-item strong {
+  color: var(--color-text);
+}
+
+.platforms-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.platform-tag {
+  font-size: 0.85rem;
+}
+
+.video-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 @media (max-width: 768px) {
   .anime-list {
     padding: 1rem;
@@ -436,6 +694,17 @@ onMounted(() => {
   .anime-grid {
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     gap: 1rem;
+  }
+
+  .detail-grid,
+  .voice-actors-list,
+  .staff-list {
+    grid-template-columns: 1fr;
+  }
+
+  .weekly-schedule-badge {
+    font-size: 0.65rem;
+    padding: 0.3rem 0.6rem;
   }
 }
 </style>
