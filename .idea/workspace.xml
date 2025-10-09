@@ -4,10 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="91896c9a-b6ca-49e1-b74a-e5df0a622726" name="更改" comment="">
-      <change beforePath="$PROJECT_DIR$/.claude/settings.local.json" beforeDir="false" afterPath="$PROJECT_DIR$/.claude/settings.local.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-    </list>
+    <list default="true" id="91896c9a-b6ca-49e1-b74a-e5df0a622726" name="更改" comment="更改" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -84,7 +81,7 @@
       <workItem from="1756264507001" duration="183000" />
       <workItem from="1759893234200" duration="9628000" />
       <workItem from="1759914279721" duration="12983000" />
-      <workItem from="1759969163366" duration="2104000" />
+      <workItem from="1759969163366" duration="2741000" />
     </task>
     <task id="LOCAL-00001" summary="更改">
       <option name="closed" value="true" />
@@ -174,7 +171,23 @@
       <option name="project" value="LOCAL" />
       <updated>1759940859397</updated>
     </task>
-    <option name="localTasksCounter" value="12" />
+    <task id="LOCAL-00012" summary="更改">
+      <option name="closed" value="true" />
+      <created>1759972314586</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1759972314586</updated>
+    </task>
+    <task id="LOCAL-00013" summary="更改">
+      <option name="closed" value="true" />
+      <created>1759972329273</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1759972329273</updated>
+    </task>
+    <option name="localTasksCounter" value="14" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -205,8 +218,8 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="前後端串接修正" />
-    <MESSAGE value="更改" />
     <MESSAGE value="Merge remote-tracking branch 'origin/5-前後端串接' into 5-前後端串接&#10;&#10;# Conflicts:&#10;#&#9;.idea/workspace.xml" />
-    <option name="LAST_COMMIT_MESSAGE" value="Merge remote-tracking branch 'origin/5-前後端串接' into 5-前後端串接&#10;&#10;# Conflicts:&#10;#&#9;.idea/workspace.xml" />
+    <MESSAGE value="更改" />
+    <option name="LAST_COMMIT_MESSAGE" value="更改" />
   </component>
 </project>

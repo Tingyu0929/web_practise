@@ -105,6 +105,23 @@
       </Card>
     </div>
 
+    <!-- 無資料 -->
+    <div v-else class="no-data">
+      <i class="pi pi-inbox"></i>
+      <p>找不到動漫資料</p>
+      <Button label="重新載入" icon="pi pi-refresh" @click="fetchAnimes" />
+    </div>
+
+    <!-- 分頁 -->
+    <div v-if="totalPages > 1" class="pagination">
+      <Paginator
+        :rows="perPage"
+        :totalRecords="totalRecords"
+        @page="onPageChange"
+        :rowsPerPageOptions="[12, 24, 48, 96]"
+      />
+    </div>
+
     <!-- 動漫詳細資訊彈出視窗 -->
     <Dialog
       v-model:visible="showDetailDialog"
@@ -215,23 +232,6 @@
         </div>
       </div>
     </Dialog>
-
-    <!-- 無資料 -->
-    <div v-else class="no-data">
-      <i class="pi pi-inbox"></i>
-      <p>找不到動漫資料</p>
-      <Button label="重新載入" icon="pi pi-refresh" @click="fetchAnimes" />
-    </div>
-
-    <!-- 分頁 -->
-    <div v-if="totalPages > 1" class="pagination">
-      <Paginator
-        :rows="perPage"
-        :totalRecords="totalRecords"
-        @page="onPageChange"
-        :rowsPerPageOptions="[12, 24, 48, 96]"
-      />
-    </div>
   </div>
 </template>
 
