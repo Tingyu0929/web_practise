@@ -1250,34 +1250,47 @@ class AnimeScraper
             $text = $container->text();
             $voiceActors = [];
 
-            // 方法1: 尋找配音員標題後的內容
-            if (preg_match('/配音員[：:](.*?)(?:製作人員|主題曲|OP|ED|Staff)/us', $text, $matches)) {
-                $actorsText = trim($matches[1]);
+            // 方法1: 尋找配音員或Cast標題後的內容（更精確的分隔）
+            $patterns = [
+                '/配音員[：:\s]*\n?(.*?)(?:\n\s*(?:製作人員|Staff|原作|導演|劇本|音樂|動畫製作|主題曲|OP|ED))/us',
+                '/Cast[：:\s]*\n?(.*?)(?:\n\s*(?:Staff|製作人員|原作|導演|劇本))/us',
+            ];
 
-                // 分割配音員資訊（通常格式：角色名：配音員名）
-                preg_match_all('/([^：:]+)[：:]([^：:、,，\n]+)/u', $actorsText, $actorMatches, PREG_SET_ORDER);
+            foreach ($patterns as $pattern) {
+                if (preg_match($pattern, $text, $matches)) {
+                    $actorsText = trim($matches[1]);
 
-                foreach ($actorMatches as $match) {
-                    if (count($match) >= 3) {
-                        $voiceActors[] = [
-                            'character' => trim($match[1]),
-                            'actor' => trim($match[2])
-                        ];
+                    // 分割配音員資訊（格式：角色名：配音員名 或 角色名／怪獸８号：配音員名）
+                    // 使用更精確的模式，避免匹配到製作人員
+                    preg_match_all('/([^\n：:]+?)[：:]([^\n：:]+?)(?:\n|$)/u', $actorsText, $actorMatches, PREG_SET_ORDER);
+
+                    foreach ($actorMatches as $match) {
+                        if (count($match) >= 3) {
+                            $character = trim($match[1]);
+                            $actor = trim($match[2]);
+
+                            // 過濾掉可能是製作人員的項目
+                            $staffKeywords = ['原作', '導演', '劇本', '編劇', '監督', '設計', '音樂', '製作', '攝影', '剪接', '音效'];
+                            $isStaff = false;
+                            foreach ($staffKeywords as $keyword) {
+                                if (mb_strpos($character, $keyword) !== false || mb_strpos($actor, $keyword) !== false) {
+                                    $isStaff = true;
+                                    break;
+                                }
+                            }
+
+                            if (!$isStaff && mb_strlen($character) > 0 && mb_strlen($actor) > 0) {
+                                $voiceActors[] = [
+                                    'character' => $character,
+                                    'actor' => $actor
+                                ];
+                            }
+                        }
                     }
-                }
-            }
 
-            // 方法2: 尋找Cast標題後的內容
-            if (empty($voiceActors) && preg_match('/Cast[：:]?(.*?)(?:Staff|製作)/us', $text, $matches)) {
-                $actorsText = trim($matches[1]);
-                preg_match_all('/([^：:]+)[：:]([^：:、,，\n]+)/u', $actorsText, $actorMatches, PREG_SET_ORDER);
-
-                foreach ($actorMatches as $match) {
-                    if (count($match) >= 3) {
-                        $voiceActors[] = [
-                            'character' => trim($match[1]),
-                            'actor' => trim($match[2])
-                        ];
+                    if (!empty($voiceActors)) {
+                        Log::info('成功提取配音員', ['count' => count($voiceActors)]);
+                        break;
                     }
                 }
             }
@@ -1392,25 +1405,74 @@ class AnimeScraper
             $text = $container->text();
             $staff = [];
 
-            // 方法1: 尋找製作人員或Staff標題後的內容
-            if (preg_match('/(?:製作人員|Staff)[：:]?(.*?)(?:配音員|Cast|主題曲|OP|ED)/us', $text, $matches)) {
-                $staffText = trim($matches[1]);
+            // 方法1: 尋找製作人員或Staff標題後的內容（更精確的分隔）
+            $patterns = [
+                '/(?:製作人員|Staff)[：:\s]*\n?(.*?)(?:\n\s*(?:配音員|Cast|主題曲|OP|ED|外部|播放|©))/us',
+                '/(?:原作|導演|劇本)[：:](.*?)(?:\n\s*(?:配音員|Cast|主題曲|OP|ED|外部|播放))/us',
+            ];
 
-                // 分割製作人員資訊（通常格式：職位：人名）
-                preg_match_all('/([^：:]+)[：:]([^：:、,，\n]+)/u', $staffText, $staffMatches, PREG_SET_ORDER);
+            foreach ($patterns as $pattern) {
+                if (preg_match($pattern, $text, $matches)) {
+                    $staffText = trim($matches[1]);
 
-                foreach ($staffMatches as $match) {
-                    if (count($match) >= 3) {
-                        $position = trim($match[1]);
-                        $name = trim($match[2]);
-
-                        // 過濾掉太短或無意義的內容
-                        if (mb_strlen($position) > 1 && mb_strlen($name) > 1) {
-                            $staff[] = [
-                                'position' => $position,
-                                'name' => $name
-                            ];
+                    // 如果第二個模式匹配到，需要把匹配的第一行也加進去
+                    if (strpos($pattern, '原作') !== false) {
+                        // 找到"原作"之前的位置，從那裡開始提取
+                        $pos = mb_strpos($text, '原作');
+                        if ($pos !== false) {
+                            // 找到配音員的位置作為結束
+                            $endPatterns = ['配音員', 'Cast', '主題曲', 'OP', 'ED'];
+                            $endPos = mb_strlen($text);
+                            foreach ($endPatterns as $endPattern) {
+                                $tempPos = mb_strpos($text, $endPattern, $pos);
+                                if ($tempPos !== false && $tempPos < $endPos) {
+                                    $endPos = $tempPos;
+                                }
+                            }
+                            $staffText = mb_substr($text, $pos, $endPos - $pos);
                         }
+                    }
+
+                    // 分割製作人員資訊（格式：職位：人名）
+                    preg_match_all('/([^\n：:]+?)[：:]([^\n：:]+?)(?:\n|$)/u', $staffText, $staffMatches, PREG_SET_ORDER);
+
+                    foreach ($staffMatches as $match) {
+                        if (count($match) >= 3) {
+                            $position = trim($match[1]);
+                            $name = trim($match[2]);
+
+                            // 只接受包含製作相關關鍵字的項目
+                            $staffKeywords = ['原作', '導演', '劇本', '編劇', '監督', '設計', '音樂', '製作', '攝影', '剪接', '音效', '統籌', '作畫'];
+                            $isStaff = false;
+                            foreach ($staffKeywords as $keyword) {
+                                if (mb_strpos($position, $keyword) !== false) {
+                                    $isStaff = true;
+                                    break;
+                                }
+                            }
+
+                            // 過濾掉太短或包含角色名的內容（配音員通常有角色名）
+                            $characterKeywords = ['／', '/', '号'];
+                            $hasCharacter = false;
+                            foreach ($characterKeywords as $keyword) {
+                                if (mb_strpos($position, $keyword) !== false) {
+                                    $hasCharacter = true;
+                                    break;
+                                }
+                            }
+
+                            if ($isStaff && !$hasCharacter && mb_strlen($position) > 1 && mb_strlen($name) > 1) {
+                                $staff[] = [
+                                    'position' => $position,
+                                    'name' => $name
+                                ];
+                            }
+                        }
+                    }
+
+                    if (!empty($staff)) {
+                        Log::info('成功提取製作人員', ['count' => count($staff)]);
+                        break;
                     }
                 }
             }
