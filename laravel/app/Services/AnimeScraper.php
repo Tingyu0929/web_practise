@@ -295,13 +295,25 @@ class AnimeScraper
         // 提取播放平台資訊
         $platforms = $this->extractPlatforms($container);
 
+        // 新增：提取額外資訊
+        $weeklySchedule = $this->extractWeeklySchedule($container);
+        $voiceActors = $this->extractVoiceActors($container);
+        $copyright = $this->extractCopyright($container);
+        $trailerUrl = $this->extractTrailerUrl($container);
+        $videoLinks = $this->extractVideoLinks($container);
+        $staff = $this->extractStaff($container);
+
         Log::info('成功提取動漫資料', [
             'title' => $title,
             'type' => $type,
             'categories_count' => count($categories),
             'platforms_count' => count($platforms),
             'has_description' => !empty($description),
-            'has_release_date' => !empty($releaseDate)
+            'has_release_date' => !empty($releaseDate),
+            'has_weekly_schedule' => !empty($weeklySchedule),
+            'has_voice_actors' => !empty($voiceActors),
+            'has_copyright' => !empty($copyright),
+            'has_trailer' => !empty($trailerUrl)
         ]);
 
         return [
@@ -313,6 +325,12 @@ class AnimeScraper
             'release_date' => $releaseDate,
             'platforms' => $platforms,
             'source_url' => request()->url(),
+            'weekly_schedule' => $weeklySchedule,
+            'voice_actors' => $voiceActors,
+            'copyright' => $copyright,
+            'trailer_url' => $trailerUrl,
+            'video_links' => $videoLinks,
+            'staff' => $staff,
         ];
 
     } catch (\Exception $e) {
@@ -692,9 +710,15 @@ class AnimeScraper
                         'image_url' => $data['image_url'],
                         'categories' => $data['categories'],
                         'type' => $data['type'],
-                        'description' => $data['description'], // 新增
-                        'release_date' => $data['release_date'], // 新增
+                        'description' => $data['description'],
+                        'release_date' => $data['release_date'],
                         'source_url' => $data['source_url'],
+                        'weekly_schedule' => $data['weekly_schedule'] ?? null,
+                        'voice_actors' => $data['voice_actors'] ?? null,
+                        'copyright' => $data['copyright'] ?? null,
+                        'trailer_url' => $data['trailer_url'] ?? null,
+                        'video_links' => $data['video_links'] ?? null,
+                        'staff' => $data['staff'] ?? null,
                         'status' => 'active'
                     ]);
                     $newAnimes++;
@@ -713,9 +737,15 @@ class AnimeScraper
                             $data['categories']
                         )),
                         'type' => $data['type'],
-                        'description' => $data['description'] ?: $anime->description, // 保留原有描述如果新的是空的
-                        'release_date' => $data['release_date'] ?: $anime->release_date, // 保留原有日期如果新的是空的
+                        'description' => $data['description'] ?: $anime->description,
+                        'release_date' => $data['release_date'] ?: $anime->release_date,
                         'source_url' => $data['source_url'],
+                        'weekly_schedule' => $data['weekly_schedule'] ?? $anime->weekly_schedule,
+                        'voice_actors' => $data['voice_actors'] ?? $anime->voice_actors,
+                        'copyright' => $data['copyright'] ?? $anime->copyright,
+                        'trailer_url' => $data['trailer_url'] ?? $anime->trailer_url,
+                        'video_links' => $data['video_links'] ?? $anime->video_links,
+                        'staff' => $data['staff'] ?? $anime->staff,
                     ]);
                     $updatedAnimes++;
 
@@ -1159,5 +1189,217 @@ class AnimeScraper
         }
 
         return trim($description);
+    }
+
+    /**
+     * 提取每周更新時間
+     */
+    private function extractWeeklySchedule(Crawler $container)
+    {
+        try {
+            $text = $container->text();
+
+            // 匹配模式：每週X 時間, 星期X 時間, 週X 時間等
+            $patterns = [
+                '/每[週周]([一二三四五六日天])[\s]*([\d]{1,2}[:：][\d]{2})/',
+                '/星期([一二三四五六日天])[\s]*([\d]{1,2}[:：][\d]{2})/',
+                '/週([一二三四五六日])[\s]*([\d]{1,2}[:：][\d]{2})/',
+                '/([一二三四五六日天])[\s]*([\d]{1,2}[:：][\d]{2})更新/',
+            ];
+
+            foreach ($patterns as $pattern) {
+                if (preg_match($pattern, $text, $matches)) {
+                    $day = $matches[1];
+                    $time = str_replace('：', ':', $matches[2]);
+                    return "每週{$day} {$time}";
+                }
+            }
+
+            return null;
+        } catch (\Exception $e) {
+            Log::error('每周更新時間提取失敗', ['message' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    /**
+     * 提取配音員
+     */
+    private function extractVoiceActors(Crawler $container)
+    {
+        try {
+            $text = $container->text();
+            $voiceActors = [];
+
+            // 方法1: 尋找配音員標題後的內容
+            if (preg_match('/配音員[：:](.*?)(?:製作人員|主題曲|OP|ED|Staff)/us', $text, $matches)) {
+                $actorsText = trim($matches[1]);
+
+                // 分割配音員資訊（通常格式：角色名：配音員名）
+                preg_match_all('/([^：:]+)[：:]([^：:、,，\n]+)/u', $actorsText, $actorMatches, PREG_SET_ORDER);
+
+                foreach ($actorMatches as $match) {
+                    if (count($match) >= 3) {
+                        $voiceActors[] = [
+                            'character' => trim($match[1]),
+                            'actor' => trim($match[2])
+                        ];
+                    }
+                }
+            }
+
+            // 方法2: 尋找Cast標題後的內容
+            if (empty($voiceActors) && preg_match('/Cast[：:]?(.*?)(?:Staff|製作)/us', $text, $matches)) {
+                $actorsText = trim($matches[1]);
+                preg_match_all('/([^：:]+)[：:]([^：:、,，\n]+)/u', $actorsText, $actorMatches, PREG_SET_ORDER);
+
+                foreach ($actorMatches as $match) {
+                    if (count($match) >= 3) {
+                        $voiceActors[] = [
+                            'character' => trim($match[1]),
+                            'actor' => trim($match[2])
+                        ];
+                    }
+                }
+            }
+
+            return !empty($voiceActors) ? $voiceActors : null;
+        } catch (\Exception $e) {
+            Log::error('配音員提取失敗', ['message' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    /**
+     * 提取版權所屬
+     */
+    private function extractCopyright(Crawler $container)
+    {
+        try {
+            $text = $container->text();
+
+            // 匹配模式
+            $patterns = [
+                '/©\s*(.+?)(?:\n|$)/',
+                '/版權[所]?屬?[：:](.+?)(?:\n|$)/u',
+                '/Copyright[：:]?\s*(.+?)(?:\n|$)/i',
+                '/製作[：:](.+?)(?:\n|$)/u',
+            ];
+
+            foreach ($patterns as $pattern) {
+                if (preg_match($pattern, $text, $matches)) {
+                    $copyright = trim($matches[1]);
+                    if (mb_strlen($copyright) > 2 && mb_strlen($copyright) < 200) {
+                        return $copyright;
+                    }
+                }
+            }
+
+            return null;
+        } catch (\Exception $e) {
+            Log::error('版權提取失敗', ['message' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    /**
+     * 提取預告片連結
+     */
+    private function extractTrailerUrl(Crawler $container)
+    {
+        try {
+            $text = $container->text();
+
+            // 方法1: 從HTML中尋找包含youtube, bilibili等影片平台的連結
+            $videoPatterns = [
+                'youtube.com/watch',
+                'youtu.be/',
+                'bilibili.com/video',
+                'nicovideo.jp/watch'
+            ];
+
+            $html = $container->html();
+            foreach ($videoPatterns as $pattern) {
+                if (preg_match('/href=["\']([^"\']*' . preg_quote($pattern, '/') . '[^"\']*)["\']/', $html, $matches)) {
+                    return $matches[1];
+                }
+            }
+
+            // 方法2: 從文字中提取URL
+            if (preg_match('/(https?:\/\/(?:www\.)?(?:youtube\.com|youtu\.be|bilibili\.com|nicovideo\.jp)[^\s]+)/', $text, $matches)) {
+                return trim($matches[1]);
+            }
+
+            return null;
+        } catch (\Exception $e) {
+            Log::error('預告片連結提取失敗', ['message' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    /**
+     * 提取影片連結
+     */
+    private function extractVideoLinks(Crawler $container)
+    {
+        try {
+            $html = $container->html();
+            $videoLinks = [];
+
+            // 尋找所有影片相關連結
+            preg_match_all('/href=["\']([^"\']*(?:youtube\.com|youtu\.be|bilibili\.com|nicovideo\.jp)[^"\']*)["\']/', $html, $matches);
+
+            if (!empty($matches[1])) {
+                foreach ($matches[1] as $url) {
+                    if (!in_array($url, $videoLinks)) {
+                        $videoLinks[] = $url;
+                    }
+                }
+            }
+
+            return !empty($videoLinks) ? $videoLinks : null;
+        } catch (\Exception $e) {
+            Log::error('影片連結提取失敗', ['message' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    /**
+     * 提取製作人員
+     */
+    private function extractStaff(Crawler $container)
+    {
+        try {
+            $text = $container->text();
+            $staff = [];
+
+            // 方法1: 尋找製作人員或Staff標題後的內容
+            if (preg_match('/(?:製作人員|Staff)[：:]?(.*?)(?:配音員|Cast|主題曲|OP|ED)/us', $text, $matches)) {
+                $staffText = trim($matches[1]);
+
+                // 分割製作人員資訊（通常格式：職位：人名）
+                preg_match_all('/([^：:]+)[：:]([^：:、,，\n]+)/u', $staffText, $staffMatches, PREG_SET_ORDER);
+
+                foreach ($staffMatches as $match) {
+                    if (count($match) >= 3) {
+                        $position = trim($match[1]);
+                        $name = trim($match[2]);
+
+                        // 過濾掉太短或無意義的內容
+                        if (mb_strlen($position) > 1 && mb_strlen($name) > 1) {
+                            $staff[] = [
+                                'position' => $position,
+                                'name' => $name
+                            ];
+                        }
+                    }
+                }
+            }
+
+            return !empty($staff) ? $staff : null;
+        } catch (\Exception $e) {
+            Log::error('製作人員提取失敗', ['message' => $e->getMessage()]);
+            return null;
+        }
     }
 }

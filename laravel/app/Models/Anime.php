@@ -17,12 +17,21 @@ class Anime extends Model
         'description',
         'status',
         'release_date',
-        'source_url'
+        'source_url',
+        'weekly_schedule',
+        'voice_actors',
+        'copyright',
+        'trailer_url',
+        'video_links',
+        'staff'
     ];
 
     protected $casts = [
         'categories' => 'array',
         'release_date' => 'date',
+        'voice_actors' => 'array',
+        'video_links' => 'array',
+        'staff' => 'array',
     ];
 
     /**
