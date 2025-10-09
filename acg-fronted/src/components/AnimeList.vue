@@ -26,7 +26,7 @@
           />
         </span>
 
-        <Select
+        <Dropdown
           v-model="selectedPlatform"
           :options="platformOptions"
           optionLabel="label"
@@ -240,7 +240,7 @@ import { ref, onMounted, computed } from 'vue'
 import { animeAPI } from '../services/api'
 import Card from 'primevue/card'
 import InputText from 'primevue/inputtext'
-import Select from 'primevue/select'
+import Dropdown from 'primevue/dropdown'
 import Button from 'primevue/button'
 import Paginator from 'primevue/paginator'
 import ProgressSpinner from 'primevue/progressspinner'
