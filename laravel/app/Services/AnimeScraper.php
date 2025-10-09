@@ -295,13 +295,28 @@ class AnimeScraper
         // 提取播放平台資訊
         $platforms = $this->extractPlatforms($container);
 
-        // 新增：提取額外資訊
-        $weeklySchedule = $this->extractWeeklySchedule($container);
-        $voiceActors = $this->extractVoiceActors($container);
-        $copyright = $this->extractCopyright($container);
-        $trailerUrl = $this->extractTrailerUrl($container);
-        $videoLinks = $this->extractVideoLinks($container);
-        $staff = $this->extractStaff($container);
+        // 嘗試找到詳細頁面連結
+        $detailUrl = $this->extractDetailUrl($container);
+        $detailData = null;
+
+        if ($detailUrl) {
+            Log::info('找到詳細頁面', ['url' => $detailUrl]);
+            $detailData = $this->fetchDetailPageData($detailUrl);
+        }
+
+        // 新增：提取額外資訊（優先使用詳細頁面的資料）
+        $weeklySchedule = $detailData['weekly_schedule'] ?? $this->extractWeeklySchedule($container);
+        $voiceActors = $detailData['voice_actors'] ?? $this->extractVoiceActors($container);
+        $copyright = $detailData['copyright'] ?? $this->extractCopyright($container);
+        $trailerUrl = $detailData['trailer_url'] ?? $this->extractTrailerUrl($container);
+        $videoLinks = $detailData['video_links'] ?? $this->extractVideoLinks($container);
+        $staff = $detailData['staff'] ?? $this->extractStaff($container);
+        $externalLinks = $detailData['external_links'] ?? null;
+
+        // 如果詳細頁面有更完整的平台資訊，使用詳細頁面的
+        if (!empty($detailData['platforms'])) {
+            $platforms = $detailData['platforms'];
+        }
 
         Log::info('成功提取動漫資料', [
             'title' => $title,
@@ -313,7 +328,8 @@ class AnimeScraper
             'has_weekly_schedule' => !empty($weeklySchedule),
             'has_voice_actors' => !empty($voiceActors),
             'has_copyright' => !empty($copyright),
-            'has_trailer' => !empty($trailerUrl)
+            'has_trailer' => !empty($trailerUrl),
+            'has_external_links' => !empty($externalLinks)
         ]);
 
         return [
@@ -324,13 +340,14 @@ class AnimeScraper
             'description' => $description,
             'release_date' => $releaseDate,
             'platforms' => $platforms,
-            'source_url' => request()->url(),
+            'source_url' => $detailUrl ?: request()->url(),
             'weekly_schedule' => $weeklySchedule,
             'voice_actors' => $voiceActors,
             'copyright' => $copyright,
             'trailer_url' => $trailerUrl,
             'video_links' => $videoLinks,
             'staff' => $staff,
+            'external_links' => $externalLinks,
         ];
 
     } catch (\Exception $e) {
@@ -719,6 +736,7 @@ class AnimeScraper
                         'trailer_url' => $data['trailer_url'] ?? null,
                         'video_links' => $data['video_links'] ?? null,
                         'staff' => $data['staff'] ?? null,
+                        'external_links' => $data['external_links'] ?? null,
                         'status' => 'active'
                     ]);
                     $newAnimes++;
@@ -746,6 +764,7 @@ class AnimeScraper
                         'trailer_url' => $data['trailer_url'] ?? $anime->trailer_url,
                         'video_links' => $data['video_links'] ?? $anime->video_links,
                         'staff' => $data['staff'] ?? $anime->staff,
+                        'external_links' => $data['external_links'] ?? $anime->external_links,
                     ]);
                     $updatedAnimes++;
 
@@ -1400,6 +1419,290 @@ class AnimeScraper
         } catch (\Exception $e) {
             Log::error('製作人員提取失敗', ['message' => $e->getMessage()]);
             return null;
+        }
+    }
+
+    /**
+     * 從容器中提取詳細頁面URL
+     */
+    private function extractDetailUrl(Crawler $container)
+    {
+        try {
+            // 方法1: 尋找包含動漫標題的連結
+            $links = $container->filter('a[href*="acgsecrets.hk"]');
+
+            if ($links->count() > 0) {
+                $href = $links->first()->attr('href');
+
+                // 如果是相對路徑，轉換為絕對路徑
+                if (strpos($href, 'http') !== 0) {
+                    $href = $this->baseUrl . $href;
+                }
+
+                Log::info('找到詳細頁面URL', ['url' => $href]);
+                return $href;
+            }
+
+            return null;
+        } catch (\Exception $e) {
+            Log::error('提取詳細URL失敗', ['message' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    /**
+     * 抓取詳細頁面資料
+     */
+    private function fetchDetailPageData($url)
+    {
+        try {
+            Log::info('開始抓取詳細頁面', ['url' => $url]);
+
+            $html = $this->fetchHtml($url);
+
+            if (!$html) {
+                Log::warning('無法獲取詳細頁面內容');
+                return null;
+            }
+
+            $crawler = new Crawler($html);
+
+            // 從詳細頁面提取資訊
+            $data = [];
+
+            // 提取每周更新時間（從詳細頁面更準確）
+            $data['weekly_schedule'] = $this->extractWeeklyScheduleFromDetail($crawler);
+
+            // 提取外部連結
+            $data['external_links'] = $this->extractExternalLinks($crawler);
+
+            // 提取播放平台（詳細頁面可能有更完整的資訊）
+            $data['platforms'] = $this->extractPlatformsFromDetail($crawler);
+
+            // 提取其他資訊
+            $data['voice_actors'] = $this->extractVoiceActors($crawler);
+            $data['copyright'] = $this->extractCopyright($crawler);
+            $data['trailer_url'] = $this->extractTrailerUrl($crawler);
+            $data['video_links'] = $this->extractVideoLinks($crawler);
+            $data['staff'] = $this->extractStaff($crawler);
+
+            Log::info('成功抓取詳細頁面資料', [
+                'has_weekly_schedule' => !empty($data['weekly_schedule']),
+                'has_external_links' => !empty($data['external_links']),
+                'platforms_count' => count($data['platforms'] ?? [])
+            ]);
+
+            return $data;
+        } catch (\Exception $e) {
+            Log::error('抓取詳細頁面失敗', ['message' => $e->getMessage(), 'url' => $url]);
+            return null;
+        }
+    }
+
+    /**
+     * 從詳細頁面提取每周更新時間
+     */
+    private function extractWeeklyScheduleFromDetail(Crawler $crawler)
+    {
+        try {
+            $text = $crawler->text();
+
+            // 擴展的匹配模式
+            $patterns = [
+                '/每[週周]([一二三四五六日天])\s*([\d]{1,2}[:：][\d]{2})/',
+                '/星期([一二三四五六日天])\s*([\d]{1,2}[:：][\d]{2})/',
+                '/週([一二三四五六日])\s*([\d]{1,2}[:：][\d]{2})/',
+                '/([一二三四五六日天])\s*([\d]{1,2}[:：][\d]{2})\s*更新/',
+                '/更新時間[：:]\s*每[週周]([一二三四五六日天])\s*([\d]{1,2}[:：][\d]{2})/',
+            ];
+
+            foreach ($patterns as $pattern) {
+                if (preg_match($pattern, $text, $matches)) {
+                    $day = $matches[1];
+                    $time = str_replace('：', ':', $matches[2]);
+                    Log::info('從詳細頁面提取每周更新時間', ['schedule' => "每週{$day} {$time}"]);
+                    return "每週{$day} {$time}";
+                }
+            }
+
+            return null;
+        } catch (\Exception $e) {
+            Log::error('從詳細頁面提取每周更新時間失敗', ['message' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    /**
+     * 提取外部連結
+     */
+    private function extractExternalLinks(Crawler $crawler)
+    {
+        try {
+            $externalLinks = [];
+            $html = $crawler->html();
+
+            // 根據你提供的HTML結構，外部連結通常在特定區域
+            // 定義需要提取的外部連結類型及其識別模式
+            $linkPatterns = [
+                'official' => ['官方網站', 'official'],
+                'wikipedia_zh' => ['維基百科(中文)', 'wikipedia.org', 'zh.wikipedia'],
+                'wikipedia_ja' => ['維基百科(日文)', 'ja.wikipedia'],
+                'wikipedia_en' => ['維基百科(英文)', 'en.wikipedia'],
+                'twitter' => ['Twitter', 'X(Twitter)', 'twitter.com', 'x.com'],
+                'mal' => ['MyAnimeList', 'MAL', 'myanimelist.net'],
+                'anilist' => ['AniList', 'anilist.co'],
+                'filmarks' => ['Filmarks', 'filmarks.com'],
+                'ptt' => ['PTT', 'ptt.cc/bbs/C_Chat'],
+                'anidb' => ['AniDB', 'anidb.net'],
+                'bangumi' => ['Bangumi', 'bangumi.tv', 'bgm.tv'],
+            ];
+
+            // 方法1: 從HTML中的a標籤提取連結
+            $crawler->filter('a[href]')->each(function (Crawler $link) use (&$externalLinks, $linkPatterns) {
+                $href = $link->attr('href');
+                $text = trim($link->text());
+
+                // 檢查每種類型的連結
+                foreach ($linkPatterns as $type => $keywords) {
+                    foreach ($keywords as $keyword) {
+                        if (stripos($href, $keyword) !== false || stripos($text, $keyword) !== false) {
+                            if (!isset($externalLinks[$type])) {
+                                $externalLinks[$type] = [
+                                    'name' => $this->getExternalLinkName($type),
+                                    'url' => $href
+                                ];
+                                Log::info('找到外部連結', ['type' => $type, 'url' => $href]);
+                            }
+                            break 2;
+                        }
+                    }
+                }
+            });
+
+            // 方法2: 從文字中提取URL（備用方法）
+            $text = $crawler->text();
+
+            // 提取所有URL
+            preg_match_all('/(https?:\/\/[^\s\)]+)/', $text, $urlMatches);
+
+            if (!empty($urlMatches[1])) {
+                foreach ($urlMatches[1] as $url) {
+                    foreach ($linkPatterns as $type => $keywords) {
+                        foreach ($keywords as $keyword) {
+                            if (stripos($url, $keyword) !== false) {
+                                if (!isset($externalLinks[$type])) {
+                                    $externalLinks[$type] = [
+                                        'name' => $this->getExternalLinkName($type),
+                                        'url' => $url
+                                    ];
+                                    Log::info('從文字提取外部連結', ['type' => $type, 'url' => $url]);
+                                }
+                                break 2;
+                            }
+                        }
+                    }
+                }
+            }
+
+            return !empty($externalLinks) ? array_values($externalLinks) : null;
+        } catch (\Exception $e) {
+            Log::error('提取外部連結失敗', ['message' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    /**
+     * 獲取外部連結的顯示名稱
+     */
+    private function getExternalLinkName($type)
+    {
+        $names = [
+            'official' => '官方網站',
+            'wikipedia_zh' => '維基百科(中文)',
+            'wikipedia_ja' => '維基百科(日文)',
+            'wikipedia_en' => '維基百科(英文)',
+            'twitter' => 'X (Twitter)',
+            'mal' => 'MyAnimeList',
+            'anilist' => 'AniList',
+            'filmarks' => 'Filmarks',
+            'ptt' => 'PTT (C_Chat)',
+            'anidb' => 'AniDB',
+            'bangumi' => 'Bangumi',
+        ];
+
+        return $names[$type] ?? ucfirst($type);
+    }
+
+    /**
+     * 從詳細頁面提取播放平台
+     */
+    private function extractPlatformsFromDetail(Crawler $crawler)
+    {
+        try {
+            $platforms = [];
+            $text = $crawler->text();
+
+            // 擴展的平台映射（包含更多平台和多地區支援）
+            $platformMapping = [
+                // 串流平台
+                'Netflix' => ['Netflix', ['香港', '台灣', '日本']],
+                'Disney+' => ['Disney+', ['香港', '台灣']],
+                'Disney＋' => ['Disney+', ['香港', '台灣']],
+                'Amazon Prime' => ['Amazon Prime Video', ['香港', '台灣', '日本']],
+                'Bilibili' => ['Bilibili', ['中國大陸', '香港']],
+                '巴哈姆特動畫瘋' => ['巴哈姆特動畫瘋', ['台灣']],
+                'myTV SUPER' => ['myTV SUPER', ['香港']],
+                'Crunchyroll' => ['Crunchyroll', ['香港', '台灣']],
+                'Ani-One' => ['Ani-One YouTube', ['香港', '台灣']],
+                'viu' => ['viu.com', ['香港']],
+                'ViuTV' => ['viu.com', ['香港']],
+                'LINE TV' => ['LINE TV', ['台灣']],
+                'friDay' => ['friDay影音', ['台灣']],
+                'KKTV' => ['KKTV', ['台灣']],
+                'LiTV' => ['LiTV線上影視', ['台灣']],
+                'HBO GO' => ['HBO GO', ['香港', '台灣']],
+                'Hulu' => ['Hulu', ['日本']],
+            ];
+
+            // 檢查每個平台
+            foreach ($platformMapping as $platformText => $platformInfo) {
+                if (mb_strpos($text, $platformText) !== false) {
+                    $platformName = $platformInfo[0];
+                    $possibleRegions = $platformInfo[1];
+
+                    // 嘗試檢測具體地區
+                    $detectedRegions = [];
+                    foreach ($possibleRegions as $region) {
+                        if (mb_strpos($text, $region) !== false) {
+                            $detectedRegions[] = $region;
+                        }
+                    }
+
+                    // 如果沒有檢測到具體地區，使用所有可能的地區
+                    if (empty($detectedRegions)) {
+                        $detectedRegions = $possibleRegions;
+                    }
+
+                    // 為每個地區創建平台記錄
+                    foreach ($detectedRegions as $region) {
+                        $platforms[] = [
+                            'region' => $region,
+                            'platform' => $platformName,
+                            'availability_status' => 'available'
+                        ];
+
+                        Log::info('從詳細頁面找到平台', [
+                            'platform' => $platformName,
+                            'region' => $region
+                        ]);
+                    }
+                }
+            }
+
+            return $platforms;
+        } catch (\Exception $e) {
+            Log::error('從詳細頁面提取平台失敗', ['message' => $e->getMessage()]);
+            return [];
         }
     }
 }

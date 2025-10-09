@@ -4,7 +4,12 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="91896c9a-b6ca-49e1-b74a-e5df0a622726" name="更改" comment="更改" />
+    <list default="true" id="91896c9a-b6ca-49e1-b74a-e5df0a622726" name="更改" comment="更改">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/acg-fronted/src/components/AnimeList.vue" beforeDir="false" afterPath="$PROJECT_DIR$/acg-fronted/src/components/AnimeList.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/laravel/app/Models/Anime.php" beforeDir="false" afterPath="$PROJECT_DIR$/laravel/app/Models/Anime.php" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/laravel/app/Services/AnimeScraper.php" beforeDir="false" afterPath="$PROJECT_DIR$/laravel/app/Services/AnimeScraper.php" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -81,7 +86,7 @@
       <workItem from="1756264507001" duration="183000" />
       <workItem from="1759893234200" duration="9628000" />
       <workItem from="1759914279721" duration="12983000" />
-      <workItem from="1759969163366" duration="3585000" />
+      <workItem from="1759969163366" duration="16188000" />
     </task>
     <task id="LOCAL-00001" summary="更改">
       <option name="closed" value="true" />
@@ -195,7 +200,23 @@
       <option name="project" value="LOCAL" />
       <updated>1759974534123</updated>
     </task>
-    <option name="localTasksCounter" value="15" />
+    <task id="LOCAL-00015" summary="更改">
+      <option name="closed" value="true" />
+      <created>1759978595276</created>
+      <option name="number" value="00015" />
+      <option name="presentableId" value="LOCAL-00015" />
+      <option name="project" value="LOCAL" />
+      <updated>1759978595276</updated>
+    </task>
+    <task id="LOCAL-00016" summary="更改">
+      <option name="closed" value="true" />
+      <created>1759978602116</created>
+      <option name="number" value="00016" />
+      <option name="presentableId" value="LOCAL-00016" />
+      <option name="project" value="LOCAL" />
+      <updated>1759978602116</updated>
+    </task>
+    <option name="localTasksCounter" value="17" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

@@ -23,7 +23,8 @@ class Anime extends Model
         'copyright',
         'trailer_url',
         'video_links',
-        'staff'
+        'staff',
+        'external_links'
     ];
 
     protected $casts = [
@@ -32,6 +33,7 @@ class Anime extends Model
         'voice_actors' => 'array',
         'video_links' => 'array',
         'staff' => 'array',
+        'external_links' => 'array',
     ];
 
     /**

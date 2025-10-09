@@ -219,6 +219,23 @@
             </div>
           </div>
 
+          <!-- 外部連結 -->
+          <div v-if="selectedAnime.external_links && selectedAnime.external_links.length > 0" class="detail-section">
+            <h3><i class="pi pi-globe"></i> 外部連結</h3>
+            <div class="external-links">
+              <Button
+                v-for="(link, index) in selectedAnime.external_links"
+                :key="index"
+                :label="link.name"
+                icon="pi pi-external-link"
+                @click="openLink(link.url)"
+                outlined
+                size="small"
+                class="external-link-btn"
+              />
+            </div>
+          </div>
+
           <!-- 來源連結 -->
           <div v-if="selectedAnime.source_url" class="detail-section">
             <Button
@@ -670,6 +687,16 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+.external-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.external-link-btn {
+  flex-shrink: 0;
 }
 
 @media (max-width: 768px) {
