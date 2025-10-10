@@ -11,6 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Drop existing table if it exists (cleanup from previous attempts)
+        Schema::dropIfExists('external_links');
+
         Schema::create('external_links', function (Blueprint $table) {
             $table->id();
             $table->foreignId('anime_id')->constrained()->onDelete('cascade');
