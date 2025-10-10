@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Anime;
 use App\Models\AnimePlatform;
+use App\Models\ExternalLink;
 use GuzzleHttp\Client;
 use Symfony\Component\DomCrawler\Crawler;
 use Illuminate\Support\Facades\DB;
@@ -809,10 +810,48 @@ class AnimeScraper
                             'anime_id' => $anime->id,
                             'region' => $platformData['region'],
                             'platform' => $platformData['platform'],
-                            'availability_status' => $platformData['availability_status']
+                            'availability_status' => $platformData['availability_status'],
+                            'platform_url' => $platformData['notes'] ?? null
                         ]);
                         $newPlatforms++;
                     }
+                }
+
+                // 儲存外部連結到獨立表格
+                if (!empty($data['external_links'])) {
+                    // 先刪除舊的外部連結
+                    ExternalLink::where('anime_id', $anime->id)->delete();
+
+                    $order = 0;
+                    foreach ($data['external_links'] as $linkData) {
+                        $type = ExternalLink::identifyTypeFromUrl($linkData['url']);
+                        $language = null;
+
+                        // 識別維基百科語言
+                        if ($type === 'wikipedia') {
+                            if (strpos($linkData['url'], 'zh.wikipedia') !== false) {
+                                $language = 'zh';
+                            } elseif (strpos($linkData['url'], 'ja.wikipedia') !== false) {
+                                $language = 'ja';
+                            } elseif (strpos($linkData['url'], 'en.wikipedia') !== false) {
+                                $language = 'en';
+                            }
+                        }
+
+                        ExternalLink::create([
+                            'anime_id' => $anime->id,
+                            'type' => $type,
+                            'name' => $linkData['name'],
+                            'url' => $linkData['url'],
+                            'language' => $language,
+                            'order' => $order++
+                        ]);
+                    }
+
+                    Log::info('成功儲存外部連結', [
+                        'anime_id' => $anime->id,
+                        'count' => count($data['external_links'])
+                    ]);
                 }
             }
 

@@ -97,4 +97,28 @@ class Anime extends Model
 
         return $query->first();
     }
+
+    /**
+     * 關聯外部連結（一對多關聯）
+     */
+    public function externalLinks()
+    {
+        return $this->hasMany(ExternalLink::class, 'anime_id')->orderBy('order');
+    }
+
+    /**
+     * 取得特定類型的外部連結
+     */
+    public function getExternalLinkByType($type)
+    {
+        return $this->externalLinks()->where('type', $type)->first();
+    }
+
+    /**
+     * 檢查是否有特定類型的外部連結
+     */
+    public function hasExternalLinkType($type)
+    {
+        return $this->externalLinks()->where('type', $type)->exists();
+    }
 }
