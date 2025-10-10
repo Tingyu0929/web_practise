@@ -1687,8 +1687,9 @@ class AnimeScraper
             // 提取每周更新時間（從詳細頁面更準確）
             $data['weekly_schedule'] = $this->extractWeeklyScheduleFromDetail($crawler);
 
-            // 提取外部連結
-            $data['external_links'] = $this->extractExternalLinks($crawler);
+            // 暫時禁用外部連結爬取 - 需要重新設計分類邏輯
+            // $data['external_links'] = $this->extractExternalLinks($crawler);
+            $data['external_links'] = null;
 
             // 提取播放平台（詳細頁面可能有更完整的資訊）
             $data['platforms'] = $this->extractPlatformsFromDetail($crawler);
