@@ -19,7 +19,7 @@ return new class extends Migration
             $table->foreignId('anime_id')->constrained()->onDelete('cascade');
             $table->string('type', 50); // official, wikipedia, twitter, mal, anilist, anidb, bangumi, youtube, etc.
             $table->string('name', 200); // 顯示名稱
-            $table->text('url'); // 連結URL
+            $table->string('url', 500); // 連結URL (改為 VARCHAR 以支援 unique 索引)
             $table->string('language', 10)->nullable(); // zh, ja, en (for wikipedia)
             $table->integer('order')->default(0); // 排序
             $table->timestamps();
