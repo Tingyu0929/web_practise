@@ -1664,6 +1664,12 @@ class AnimeScraper
     private function fetchDetailPageData($url)
     {
         try {
+            // 只爬取站內詳細頁面，跳過外部連結(如 MyAnimeList)
+            if (strpos($url, 'acgsecrets.hk') === false) {
+                Log::info('跳過外部連結', ['url' => $url]);
+                return null;
+            }
+
             Log::info('開始抓取詳細頁面', ['url' => $url]);
 
             $html = $this->fetchHtml($url);
