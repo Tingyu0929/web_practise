@@ -46,13 +46,13 @@ php artisan view:clear
 
 # 執行資料庫遷移
 echo "🗄️  Running database migrations..."
-php artisan migrate --force
+php artisan migrate --force || echo "⚠️  Migration failed, but continuing..."
 
 # 優化應用程式
 echo "⚡ Optimizing application..."
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
+php artisan config:cache || echo "⚠️  Config cache failed"
+php artisan route:cache || echo "⚠️  Route cache failed"
+php artisan view:cache || echo "⚠️  View cache failed"
 
 echo "✨ Laravel Application is ready!"
 
