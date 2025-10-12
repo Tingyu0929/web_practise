@@ -336,6 +336,42 @@ class AnimeScraper
         $staff = $detailData['staff'] ?? $this->extractStaff($container);
         $externalLinks = $detailData['external_links'] ?? null;
 
+        // 提取 Filmarks URL：優先使用詳細頁面的，如果沒有就直接在容器中提取
+        $filmarksUrl = $detailData['filmarks_url'] ?? $this->extractFilmarksUrl($container);
+
+        // 檢查配音員和製作人員資料品質
+        // 如果配音員只有1個且內容很長(>100字元),視為無效資料
+        $voiceActorsInvalid = !empty($voiceActors) &&
+                               count($voiceActors) === 1 &&
+                               isset($voiceActors[0]['actor']) &&
+                               mb_strlen($voiceActors[0]['actor']) > 100;
+
+        $shouldFetchFromFilmarks = !empty($filmarksUrl) &&
+                                   (empty($staff) || empty($voiceActors) || $voiceActorsInvalid);
+
+        // 如果配音員或製作人員為空/無效，且有 Filmarks URL，嘗試從 Filmarks 抓取
+        if ($shouldFetchFromFilmarks) {
+            if (FilmarksScraper::isValidFilmarksUrl($filmarksUrl)) {
+                Log::info('從 Filmarks 補充資料（列表頁）', [
+                    'url' => $filmarksUrl,
+                    'reason' => $voiceActorsInvalid ? 'voice_actors_invalid' : 'data_empty'
+                ]);
+
+                $filmarksScraper = new FilmarksScraper();
+                $filmarksData = $filmarksScraper->fetchStaffAndActors($filmarksUrl);
+
+                // 只在資料為空或無效時補充
+                if ((empty($voiceActors) || $voiceActorsInvalid) && !empty($filmarksData['voice_actors'])) {
+                    $voiceActors = $filmarksData['voice_actors'];
+                    Log::info('已從 Filmarks 補充配音員', ['count' => count($filmarksData['voice_actors'])]);
+                }
+                if (empty($staff) && !empty($filmarksData['staff'])) {
+                    $staff = $filmarksData['staff'];
+                    Log::info('已從 Filmarks 補充製作人員', ['count' => count($filmarksData['staff'])]);
+                }
+            }
+        }
+
         // 如果詳細頁面有更完整的平台資訊，使用詳細頁面的
         if (!empty($detailData['platforms'])) {
             $platforms = $detailData['platforms'];
@@ -364,6 +400,7 @@ class AnimeScraper
             'release_date' => $releaseDate,
             'platforms' => $platforms,
             'source_url' => $detailUrl ?: request()->url(),
+            'filmarks_url' => $filmarksUrl,
             'weekly_schedule' => $weeklySchedule ? $this->cleanUtf8($weeklySchedule) : null,
             'voice_actors' => $voiceActors,
             'copyright' => $copyright ? $this->cleanUtf8($copyright) : null,
@@ -753,6 +790,7 @@ class AnimeScraper
                         'description' => $data['description'],
                         'release_date' => $data['release_date'],
                         'source_url' => $data['source_url'],
+                        'filmarks_url' => $data['filmarks_url'] ?? null,
                         'weekly_schedule' => $data['weekly_schedule'] ?? null,
                         'voice_actors' => $data['voice_actors'] ?? null,
                         'copyright' => $data['copyright'] ?? null,
@@ -781,6 +819,7 @@ class AnimeScraper
                         'description' => $data['description'] ?: $anime->description,
                         'release_date' => $data['release_date'] ?: $anime->release_date,
                         'source_url' => $data['source_url'],
+                        'filmarks_url' => $data['filmarks_url'] ?? $anime->filmarks_url,
                         'weekly_schedule' => $data['weekly_schedule'] ?? $anime->weekly_schedule,
                         'voice_actors' => $data['voice_actors'] ?? $anime->voice_actors,
                         'copyright' => $data['copyright'] ?? $anime->copyright,
@@ -1338,19 +1377,105 @@ class AnimeScraper
                 '/Cast[：:\s]*\n?(.*?)(?=(?:Staff|製作人員|原作[：:]|導演[：:]))/us',
             ];
 
+            $staffKeywords = ['原作', '導演', '劇本統籌', '劇本', '編劇', '監督', '設計', '音樂', '製作', '攝影', '剪接', '音效'];
+
             foreach ($patterns as $pattern) {
                 if (preg_match($pattern, $text, $matches)) {
                     $actorsText = trim($matches[1]);
 
-                    // 分行處理，每行格式：角色名：配音員名
+                    // 先嘗試按換行符分割
                     $lines = preg_split('/\n+/', $actorsText);
+
+                    // 檢查是否所有內容都在一行（沒有換行符）且包含多個冒號（多個配音員）
+                    $colonCount = mb_substr_count($actorsText, '：') + mb_substr_count($actorsText, ':');
+                    $isSingleLineMultipleActors = (count($lines) === 1) && ($colonCount >= 2);
+
+                    if ($isSingleLineMultipleActors) {
+                        Log::info('檢測到單行配音員資料，嘗試智能分割', [
+                            'length' => mb_strlen($lines[0]),
+                            'preview' => mb_substr($lines[0], 0, 100)
+                        ]);
+
+                        // 策略：按冒號分割，然後智能配對
+                        // 格式: 角色1：配音員1角色2：配音員2角色3：配音員3...
+                        // 分割後: [角色1, 配音員1角色2, 配音員2角色3, 配音員3...]
+                        //
+                        // 每個片段（除了第一個和最後一個）都包含：
+                        // - 前一個配音員的名字（通常是漢字+平假名）
+                        // - 當前角色的名字（通常是片假名，緊接在配音員名後）
+
+                        $singleLine = $lines[0];
+                        $parts = preg_split('/[：:]/u', $singleLine);
+
+                        if (count($parts) >= 2) {
+                            $newLines = [];
+
+                            for ($i = 0; $i < count($parts) - 1; $i++) {
+                                $fullCharField = trim($parts[$i]);
+                                $fullActorField = trim($parts[$i + 1]);
+
+                                // 從 fullCharField 提取角色名（末尾的片假名）
+                                if ($i === 0) {
+                                    // 第一個就是純角色名
+                                    $character = $fullCharField;
+                                } else {
+                                    // 從混合文字中提取末尾的角色名（通常是片假名）
+                                    // 例如: '宮野真守ダグ' -> 'ダグ'
+                                    // 例如: '内田真礼リーランド' -> 'リーランド'
+                                    // 注意：包含長音符號 ー (U+30FC)
+                                    if (preg_match('/([\p{Katakana}ー]+)$/u', $fullCharField, $charMatch)) {
+                                        $character = trim($charMatch[1]);
+                                    } else {
+                                        // 如果沒有片假名，可能是漢字角色名，取整個字串
+                                        $character = $fullCharField;
+                                    }
+                                }
+
+                                // 從 fullActorField 提取配音員名（開頭的漢字和平假名部分）
+                                // 例如: '宮野真守ダグ' -> '宮野真守'
+                                // 例如: '古川 慎クリスティン' -> '古川 慎'
+                                if (preg_match('/^([\p{Han}\p{Hiragana}\s]+)/u', $fullActorField, $actorMatch)) {
+                                    $actor = trim($actorMatch[1]);
+                                } else {
+                                    // 如果沒有匹配，可能是最後一個配音員（全部都是配音員名）
+                                    $actor = $fullActorField;
+                                }
+
+                                // 驗證結果的合理性
+                                $validPair = !empty($character) &&
+                                           !empty($actor) &&
+                                           mb_strlen($character) >= 2 &&
+                                           mb_strlen($character) <= 30 &&
+                                           mb_strlen($actor) >= 2 &&
+                                           mb_strlen($actor) <= 50;
+
+                                if ($validPair) {
+                                    $newLines[] = $character . '：' . $actor;
+                                } else {
+                                    Log::warning('配音員配對驗證失敗', [
+                                        'character' => $character,
+                                        'character_length' => mb_strlen($character),
+                                        'actor' => mb_substr($actor, 0, 50),
+                                        'actor_length' => mb_strlen($actor)
+                                    ]);
+                                }
+                            }
+
+                            if (!empty($newLines)) {
+                                $lines = $newLines;
+                                Log::info('智能分割成功', [
+                                    'count' => count($lines),
+                                    'preview' => array_slice($lines, 0, 3)
+                                ]);
+                            }
+                        }
+                    }
 
                     foreach ($lines as $line) {
                         $line = trim($line);
                         if (empty($line)) continue;
 
                         // 檢查是否包含製作關鍵字（表示已經進入製作人員區域）
-                        $staffKeywords = ['原作', '導演', '劇本統籌', '劇本', '編劇', '監督', '設計', '音樂', '製作', '攝影', '剪接', '音效'];
                         $isStaffLine = false;
                         foreach ($staffKeywords as $keyword) {
                             if (mb_strpos($line, $keyword . '：') !== false || mb_strpos($line, $keyword . ':') !== false) {
@@ -1377,7 +1502,10 @@ class AnimeScraper
                                 }
                             }
 
-                            if (!$containsStaffKeyword && mb_strlen($character) > 0 && mb_strlen($actor) > 0) {
+                            // 進一步驗證：配音員名字不應該太長（避免把多個配音員擠在一起）
+                            $actorTooLong = mb_strlen($actor) > 50;
+
+                            if (!$containsStaffKeyword && !$actorTooLong && mb_strlen($character) > 0 && mb_strlen($actor) > 0) {
                                 // 清理 UTF-8 編碼
                                 $character = $this->cleanUtf8($character);
                                 $actor = $this->cleanUtf8($actor);
@@ -1386,12 +1514,18 @@ class AnimeScraper
                                     'character' => $character,
                                     'actor' => $actor
                                 ];
+                            } elseif ($actorTooLong) {
+                                Log::warning('配音員名字過長，可能是數據格式問題', [
+                                    'character' => mb_substr($character, 0, 20),
+                                    'actor_length' => mb_strlen($actor),
+                                    'actor_preview' => mb_substr($actor, 0, 50)
+                                ]);
                             }
                         }
                     }
 
                     if (!empty($voiceActors)) {
-                        Log::info('成功提取配音員', ['count' => count($voiceActors), 'actors' => $voiceActors]);
+                        Log::info('成功提取配音員', ['count' => count($voiceActors), 'first_3' => array_slice($voiceActors, 0, 3)]);
                         break;
                     }
                 }
@@ -1599,44 +1733,37 @@ class AnimeScraper
     private function extractDetailUrl(Crawler $container)
     {
         try {
-            // 方法1: 尋找所有連結
+            // 方法1: 優先尋找站內詳細頁面連結（acgsecrets.hk/bangumi/）
             $links = $container->filter('a[href]');
+            $acgsecretsLinks = [];
+            $otherLinks = [];
 
             if ($links->count() > 0) {
                 foreach ($links as $linkNode) {
                     $link = new Crawler($linkNode);
                     $href = $link->attr('href');
 
-                    // 檢查是否是動漫詳細頁面的連結
-                    // 詳細頁面通常包含 /bangumi/ 或 /anime/ 路徑
-                    if (strpos($href, '/bangumi/') !== false || strpos($href, '/anime/') !== false) {
-                        // 排除列表頁面
-                        if (preg_match('/\/bangumi\/\d{6}\/?$/', $href)) {
-                            continue; // 這是列表頁面，跳過
-                        }
-
-                        // 如果是相對路徑，轉換為絕對路徑
-                        if (strpos($href, 'http') !== 0) {
-                            if (strpos($href, '/') === 0) {
-                                $href = $this->baseUrl . $href;
-                            } else {
-                                $href = $this->baseUrl . '/' . $href;
-                            }
-                        }
-
-                        Log::info('找到詳細頁面URL', ['url' => $href]);
-                        return $href;
+                    // 分類站內和站外連結
+                    if (strpos($href, 'acgsecrets.hk') !== false ||
+                        (strpos($href, '/bangumi/') !== false && strpos($href, 'http') !== 0)) {
+                        $acgsecretsLinks[] = $href;
+                    } else {
+                        $otherLinks[] = $href;
                     }
                 }
             }
 
-            // 方法2: 尋找圖片的父連結
-            $imageLinks = $container->filter('img[src*="static.acgsecrets.hk"]');
-            if ($imageLinks->count() > 0) {
-                $imgParent = $imageLinks->first()->parents()->filter('a[href]');
-                if ($imgParent->count() > 0) {
-                    $href = $imgParent->first()->attr('href');
+            // 優先處理站內連結
+            foreach ($acgsecretsLinks as $href) {
+                // 檢查是否是動漫詳細頁面的連結
+                // 詳細頁面通常包含 /bangumi/ 路徑但不是純數字結尾（列表頁）
+                if (strpos($href, '/bangumi/') !== false) {
+                    // 排除列表頁面（格式：/bangumi/202504/）
+                    if (preg_match('/\/bangumi\/\d{6}\/?$/', $href)) {
+                        continue; // 這是列表頁面，跳過
+                    }
 
+                    // 如果是相對路徑，轉換為絕對路徑
                     if (strpos($href, 'http') !== 0) {
                         if (strpos($href, '/') === 0) {
                             $href = $this->baseUrl . $href;
@@ -1645,12 +1772,54 @@ class AnimeScraper
                         }
                     }
 
-                    Log::info('從圖片父連結找到詳細頁面URL', ['url' => $href]);
-                    return $href;
+                    // 確認是站內連結
+                    if (strpos($href, 'acgsecrets.hk') !== false) {
+                        Log::info('找到站內詳細頁面URL', ['url' => $href]);
+                        return $href;
+                    }
                 }
             }
 
-            Log::warning('未找到詳細頁面URL');
+            // 方法2: 尋找包含圖片的 a 標籤
+            $imageInLinks = $container->filter('a[href] img[src*="static.acgsecrets.hk"]');
+            if ($imageInLinks->count() > 0) {
+                // 獲取包含圖片的 a 標籤
+                try {
+                    // 獲取第一個匹配的圖片元素
+                    $firstImg = $imageInLinks->first();
+                    // 遍歷其父節點找到 a 標籤
+                    $node = $firstImg->getNode(0);
+                    while ($node = $node->parentNode) {
+                        if ($node->nodeName === 'a' && $node->hasAttribute('href')) {
+                            $href = $node->getAttribute('href');
+
+                            // 確保是相對路徑或站內連結
+                            if (strpos($href, 'http') !== 0) {
+                                if (strpos($href, '/') === 0) {
+                                    $href = $this->baseUrl . $href;
+                                } else {
+                                    $href = $this->baseUrl . '/' . $href;
+                                }
+                            }
+
+                            // 確認是站內連結且不是列表頁
+                            if (strpos($href, 'acgsecrets.hk') !== false &&
+                                !preg_match('/\/bangumi\/\d{6}\/?$/', $href)) {
+                                Log::info('從圖片父連結找到站內詳細頁面URL', ['url' => $href]);
+                                return $href;
+                            }
+                            break;
+                        }
+                    }
+                } catch (\Exception $e) {
+                    Log::debug('從圖片父連結提取 URL 失敗', ['message' => $e->getMessage()]);
+                }
+            }
+
+            Log::warning('未找到站內詳細頁面URL', [
+                'acgsecrets_links_count' => count($acgsecretsLinks),
+                'other_links_count' => count($otherLinks)
+            ]);
             return null;
         } catch (\Exception $e) {
             Log::error('提取詳細URL失敗', ['message' => $e->getMessage()]);
@@ -1687,6 +1856,9 @@ class AnimeScraper
             // 提取每周更新時間（從詳細頁面更準確）
             $data['weekly_schedule'] = $this->extractWeeklyScheduleFromDetail($crawler);
 
+            // 提取 Filmarks URL
+            $data['filmarks_url'] = $this->extractFilmarksUrl($crawler);
+
             // 暫時禁用外部連結爬取 - 需要重新設計分類邏輯
             // $data['external_links'] = $this->extractExternalLinks($crawler);
             $data['external_links'] = null;
@@ -1701,10 +1873,33 @@ class AnimeScraper
             $data['video_links'] = $this->extractVideoLinks($crawler);
             $data['staff'] = $this->extractStaff($crawler);
 
+            // 如果配音員或製作人員為空，嘗試從 Filmarks 抓取
+            if ((empty($data['staff']) || empty($data['voice_actors'])) && !empty($data['filmarks_url'])) {
+                if (FilmarksScraper::isValidFilmarksUrl($data['filmarks_url'])) {
+                    Log::info('從 Filmarks 補充資料', ['url' => $data['filmarks_url']]);
+
+                    $filmarksScraper = new FilmarksScraper();
+                    $filmarksData = $filmarksScraper->fetchStaffAndActors($data['filmarks_url']);
+
+                    // 只在資料為空時補充
+                    if (empty($data['voice_actors']) && !empty($filmarksData['voice_actors'])) {
+                        $data['voice_actors'] = $filmarksData['voice_actors'];
+                        Log::info('已從 Filmarks 補充配音員', ['count' => count($filmarksData['voice_actors'])]);
+                    }
+                    if (empty($data['staff']) && !empty($filmarksData['staff'])) {
+                        $data['staff'] = $filmarksData['staff'];
+                        Log::info('已從 Filmarks 補充製作人員', ['count' => count($filmarksData['staff'])]);
+                    }
+                }
+            }
+
             Log::info('成功抓取詳細頁面資料', [
                 'has_weekly_schedule' => !empty($data['weekly_schedule']),
+                'has_filmarks_url' => !empty($data['filmarks_url']),
                 'has_external_links' => !empty($data['external_links']),
-                'platforms_count' => count($data['platforms'] ?? [])
+                'platforms_count' => count($data['platforms'] ?? []),
+                'voice_actors_count' => count($data['voice_actors'] ?? []),
+                'staff_count' => count($data['staff'] ?? [])
             ]);
 
             return $data;
@@ -1795,6 +1990,30 @@ class AnimeScraper
             return null;
         } catch (\Exception $e) {
             Log::error('從詳細頁面提取每周更新時間失敗', ['message' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    /**
+     * 提取 Filmarks URL
+     */
+    private function extractFilmarksUrl(Crawler $crawler)
+    {
+        try {
+            // 在外部連結中尋找 Filmarks URL
+            $links = $crawler->filter('a[href*="filmarks.com/animes/"]');
+
+            if ($links->count() > 0) {
+                $url = $links->first()->attr('href');
+                if (FilmarksScraper::isValidFilmarksUrl($url)) {
+                    Log::info('找到 Filmarks URL', ['url' => $url]);
+                    return $url;
+                }
+            }
+
+            return null;
+        } catch (\Exception $e) {
+            Log::error('提取 Filmarks URL 失敗', ['message' => $e->getMessage()]);
             return null;
         }
     }

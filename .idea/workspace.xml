@@ -4,8 +4,19 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="91896c9a-b6ca-49e1-b74a-e5df0a622726" name="更改" comment="更改">
+    <list default="true" id="91896c9a-b6ca-49e1-b74a-e5df0a622726" name="更改" comment="改掉標題">
+      <change afterPath="$PROJECT_DIR$/note" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.claude/settings.local.json" beforeDir="false" afterPath="$PROJECT_DIR$/.claude/settings.local.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/QUICKSTART.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/acg-fronted/src/components/AnimeList.vue" beforeDir="false" afterPath="$PROJECT_DIR$/acg-fronted/src/components/AnimeList.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/laravel/app/Models/Anime.php" beforeDir="false" afterPath="$PROJECT_DIR$/laravel/app/Models/Anime.php" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/laravel/app/Services/AnimeScraper.php" beforeDir="false" afterPath="$PROJECT_DIR$/laravel/app/Services/AnimeScraper.php" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/laravel/database/migrations/2025_10_10_100001_add_broadcast_info_to_anime_platforms.php" beforeDir="false" afterPath="$PROJECT_DIR$/laravel/database/migrations/2025_10_10_100001_add_broadcast_info_to_anime_platforms.php" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/setup.bat" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source.html" beforeDir="false" afterPath="$PROJECT_DIR$/source.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test-scheduler.bat" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/test-scheduler.sh" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -64,6 +75,11 @@
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
 }</component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="E:\Project\Web\animation-web" />
+    </key>
+  </component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
@@ -83,7 +99,10 @@
       <workItem from="1756264507001" duration="183000" />
       <workItem from="1759893234200" duration="9628000" />
       <workItem from="1759914279721" duration="12983000" />
-      <workItem from="1759969163366" duration="20120000" />
+      <workItem from="1759969163366" duration="21248000" />
+      <workItem from="1760087674568" duration="12197000" />
+      <workItem from="1760166808092" duration="10435000" />
+      <workItem from="1760255198848" duration="6613000" />
     </task>
     <task id="LOCAL-00001" summary="更改">
       <option name="closed" value="true" />
@@ -245,7 +264,23 @@
       <option name="project" value="LOCAL" />
       <updated>1760023157456</updated>
     </task>
-    <option name="localTasksCounter" value="21" />
+    <task id="LOCAL-00021" summary="更改">
+      <option name="closed" value="true" />
+      <created>1760026541868</created>
+      <option name="number" value="00021" />
+      <option name="presentableId" value="LOCAL-00021" />
+      <option name="project" value="LOCAL" />
+      <updated>1760026541868</updated>
+    </task>
+    <task id="LOCAL-00022" summary="改掉標題">
+      <option name="closed" value="true" />
+      <created>1760110801917</created>
+      <option name="number" value="00022" />
+      <option name="presentableId" value="LOCAL-00022" />
+      <option name="project" value="LOCAL" />
+      <updated>1760110801917</updated>
+    </task>
+    <option name="localTasksCounter" value="23" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -278,6 +313,7 @@
     <MESSAGE value="前後端串接修正" />
     <MESSAGE value="Merge remote-tracking branch 'origin/5-前後端串接' into 5-前後端串接&#10;&#10;# Conflicts:&#10;#&#9;.idea/workspace.xml" />
     <MESSAGE value="更改" />
-    <option name="LAST_COMMIT_MESSAGE" value="更改" />
+    <MESSAGE value="改掉標題" />
+    <option name="LAST_COMMIT_MESSAGE" value="改掉標題" />
   </component>
 </project>

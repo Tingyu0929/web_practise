@@ -1,0 +1,55 @@
+# 環境配置文件
+.env
+.env.local
+.env.docker
+
+# 依賴套件
+node_modules/
+vendor/
+
+# 建置輸出
+dist/
+build/
+
+# 日誌文件
+*.log
+logs/
+
+# 系統文件
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+docker-compose.override.yml
+
+# 臨時文件
+*.tmp
+*.bak
+nul
+note
+
+# 測試和調試文件
+coverage/
+.phpunit.cache/
+test-*.php
+debug_*.html
+*_test_result_*.json
+cleanup-*.php
+source.html
+
+# 不必要的文檔和腳本
+*.bat
+*.sh
+*_GUIDE.md
+*_CHECKLIST.md
+*_STRUCTURE.md
+*_PROGRESS.md
+*_PLAN.md
+DEPLOY_*.md
+ENVIRONMENT_*.md

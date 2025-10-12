@@ -15,16 +15,15 @@
     <!-- 搜尋和篩選區域 -->
     <div class="search-section">
       <div class="search-container">
-        <span class="p-input-icon-left search-input">
-          <i class="pi pi-search"></i>
+        <div class="search-input-wrapper">
+          <i class="pi pi-search search-icon"></i>
           <InputText
-              style="margin-left: 10px;"
             v-model="searchQuery"
             placeholder="搜尋動漫名稱..."
             @input="onSearch"
-            class="w-full"
+            class="search-input"
           />
-        </span>
+        </div>
 
         <Dropdown
           v-model="selectedPlatform"
@@ -443,9 +442,26 @@ onMounted(() => {
   flex-wrap: wrap;
 }
 
-.search-input {
+.search-input-wrapper {
   flex: 1;
   min-width: 300px;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 0.75rem;
+  color: var(--color-text-muted);
+  font-size: 1rem;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.search-input {
+  width: 100%;
+  padding-left: 2.5rem;
 }
 
 .platform-select {
@@ -720,12 +736,18 @@ onMounted(() => {
 
   .search-container {
     flex-direction: column;
+    width: 100%;
   }
 
-  .search-input,
+  .search-input-wrapper,
   .platform-select {
     width: 100%;
     min-width: unset;
+    flex: none;
+  }
+
+  .search-input {
+    width: 100%;
   }
 
   .anime-grid {

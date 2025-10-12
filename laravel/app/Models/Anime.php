@@ -18,6 +18,7 @@ class Anime extends Model
         'status',
         'release_date',
         'source_url',
+        'filmarks_url',
         'weekly_schedule',
         'voice_actors',
         'copyright',

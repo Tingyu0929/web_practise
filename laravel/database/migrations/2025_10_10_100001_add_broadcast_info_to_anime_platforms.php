@@ -20,7 +20,7 @@ return new class extends Migration
                 $table->time('broadcast_time')->nullable()->after('broadcast_day'); // 播出時間，例如："23:30"
             }
             if (!Schema::hasColumn('anime_platforms', 'broadcast_timezone')) {
-                $table->string('broadcast_timezone', 10)->default('Asia/Hong_Kong')->after('broadcast_time'); // 時區
+                $table->string('broadcast_timezone', 10)->nullable()->after('broadcast_time'); // 時區，預設: Asia/Hong_Kong
             }
             if (!Schema::hasColumn('anime_platforms', 'platform_url')) {
                 $table->text('platform_url')->nullable()->after('broadcast_timezone'); // 平台連結
