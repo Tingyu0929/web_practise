@@ -1368,166 +1368,89 @@ class AnimeScraper
     private function extractVoiceActors(Crawler $container)
     {
         try {
-            $text = $container->text();
             $voiceActors = [];
 
-            // 方法1: 尋找配音員或Cast標題，並在遇到製作人員關鍵字時停止
+            // 方法1（優先）: 使用 CSS 選擇器直接從結構化 HTML 提取
+            // acgsecrets.hk 的配音員格式：
+            // <div class="anime_cast">
+            //   <div class="anime_person">
+            //     <span class="type">角色名</span>：<span class="entities">配音員名</span>
+            //   </div>
+            // </div>
+            $castItems = $container->filter('.anime_cast .anime_person');
+
+            if ($castItems->count() > 0) {
+                $castItems->each(function (Crawler $item) use (&$voiceActors) {
+                    $typeNode = $item->filter('span.type');
+                    $entitiesNode = $item->filter('span.entities');
+
+                    if ($typeNode->count() > 0 && $entitiesNode->count() > 0) {
+                        $character = trim($typeNode->text());
+                        $actor = trim($entitiesNode->text());
+
+                        if (!empty($character) && !empty($actor)) {
+                            $voiceActors[] = [
+                                'character' => $this->cleanUtf8($character),
+                                'actor'     => $this->cleanUtf8($actor),
+                            ];
+                        }
+                    }
+                });
+
+                if (!empty($voiceActors)) {
+                    Log::info('CSS選擇器成功提取配音員', ['count' => count($voiceActors)]);
+                    return $voiceActors;
+                }
+            }
+
+            // 方法2（備用）: 文字解析（當 CSS 結構不符時使用）
+            $text = $this->getTextWithNewlines($container);
+            $staffKeywords = ['原作', '導演', '劇本統籌', '劇本', '編劇', '監督', '設計', '音樂', '製作', '攝影', '剪接', '音效'];
             $patterns = [
                 '/配音員[：:\s]*\n?(.*?)(?=(?:製作人員|Staff|原作[：:]|導演[：:]|劇本統籌|主題曲|OP[：:]|ED[：:]))/us',
                 '/Cast[：:\s]*\n?(.*?)(?=(?:Staff|製作人員|原作[：:]|導演[：:]))/us',
             ];
 
-            $staffKeywords = ['原作', '導演', '劇本統籌', '劇本', '編劇', '監督', '設計', '音樂', '製作', '攝影', '剪接', '音效'];
-
             foreach ($patterns as $pattern) {
-                if (preg_match($pattern, $text, $matches)) {
-                    $actorsText = trim($matches[1]);
+                if (!preg_match($pattern, $text, $matches)) continue;
 
-                    // 先嘗試按換行符分割
-                    $lines = preg_split('/\n+/', $actorsText);
+                $lines = preg_split('/\n+/', trim($matches[1]));
 
-                    // 檢查是否所有內容都在一行（沒有換行符）且包含多個冒號（多個配音員）
-                    $colonCount = mb_substr_count($actorsText, '：') + mb_substr_count($actorsText, ':');
-                    $isSingleLineMultipleActors = (count($lines) === 1) && ($colonCount >= 2);
+                foreach ($lines as $line) {
+                    $line = trim($line);
+                    if (empty($line)) continue;
 
-                    if ($isSingleLineMultipleActors) {
-                        Log::info('檢測到單行配音員資料，嘗試智能分割', [
-                            'length' => mb_strlen($lines[0]),
-                            'preview' => mb_substr($lines[0], 0, 100)
-                        ]);
-
-                        // 策略：按冒號分割，然後智能配對
-                        // 格式: 角色1：配音員1角色2：配音員2角色3：配音員3...
-                        // 分割後: [角色1, 配音員1角色2, 配音員2角色3, 配音員3...]
-                        //
-                        // 每個片段（除了第一個和最後一個）都包含：
-                        // - 前一個配音員的名字（通常是漢字+平假名）
-                        // - 當前角色的名字（通常是片假名，緊接在配音員名後）
-
-                        $singleLine = $lines[0];
-                        $parts = preg_split('/[：:]/u', $singleLine);
-
-                        if (count($parts) >= 2) {
-                            $newLines = [];
-
-                            for ($i = 0; $i < count($parts) - 1; $i++) {
-                                $fullCharField = trim($parts[$i]);
-                                $fullActorField = trim($parts[$i + 1]);
-
-                                // 從 fullCharField 提取角色名（末尾的片假名）
-                                if ($i === 0) {
-                                    // 第一個就是純角色名
-                                    $character = $fullCharField;
-                                } else {
-                                    // 從混合文字中提取末尾的角色名（通常是片假名）
-                                    // 例如: '宮野真守ダグ' -> 'ダグ'
-                                    // 例如: '内田真礼リーランド' -> 'リーランド'
-                                    // 注意：包含長音符號 ー (U+30FC)
-                                    if (preg_match('/([\p{Katakana}ー]+)$/u', $fullCharField, $charMatch)) {
-                                        $character = trim($charMatch[1]);
-                                    } else {
-                                        // 如果沒有片假名，可能是漢字角色名，取整個字串
-                                        $character = $fullCharField;
-                                    }
-                                }
-
-                                // 從 fullActorField 提取配音員名（開頭的漢字和平假名部分）
-                                // 例如: '宮野真守ダグ' -> '宮野真守'
-                                // 例如: '古川 慎クリスティン' -> '古川 慎'
-                                if (preg_match('/^([\p{Han}\p{Hiragana}\s]+)/u', $fullActorField, $actorMatch)) {
-                                    $actor = trim($actorMatch[1]);
-                                } else {
-                                    // 如果沒有匹配，可能是最後一個配音員（全部都是配音員名）
-                                    $actor = $fullActorField;
-                                }
-
-                                // 驗證結果的合理性
-                                $validPair = !empty($character) &&
-                                           !empty($actor) &&
-                                           mb_strlen($character) >= 2 &&
-                                           mb_strlen($character) <= 30 &&
-                                           mb_strlen($actor) >= 2 &&
-                                           mb_strlen($actor) <= 50;
-
-                                if ($validPair) {
-                                    $newLines[] = $character . '：' . $actor;
-                                } else {
-                                    Log::warning('配音員配對驗證失敗', [
-                                        'character' => $character,
-                                        'character_length' => mb_strlen($character),
-                                        'actor' => mb_substr($actor, 0, 50),
-                                        'actor_length' => mb_strlen($actor)
-                                    ]);
-                                }
-                            }
-
-                            if (!empty($newLines)) {
-                                $lines = $newLines;
-                                Log::info('智能分割成功', [
-                                    'count' => count($lines),
-                                    'preview' => array_slice($lines, 0, 3)
-                                ]);
-                            }
+                    // 遇到製作人員行就停止
+                    foreach ($staffKeywords as $kw) {
+                        if (mb_strpos($line, $kw . '：') !== false || mb_strpos($line, $kw . ':') !== false) {
+                            break 2;
                         }
                     }
 
-                    foreach ($lines as $line) {
-                        $line = trim($line);
-                        if (empty($line)) continue;
+                    if (preg_match('/^([^：:]+)[：:](.+)$/', $line, $match)) {
+                        $character = trim($match[1]);
+                        $actor     = trim($match[2]);
 
-                        // 檢查是否包含製作關鍵字（表示已經進入製作人員區域）
-                        $isStaffLine = false;
-                        foreach ($staffKeywords as $keyword) {
-                            if (mb_strpos($line, $keyword . '：') !== false || mb_strpos($line, $keyword . ':') !== false) {
-                                $isStaffLine = true;
+                        $hasStaff = false;
+                        foreach ($staffKeywords as $kw) {
+                            if (mb_strpos($character, $kw) !== false || mb_strpos($actor, $kw) !== false) {
+                                $hasStaff = true;
                                 break;
                             }
                         }
 
-                        if ($isStaffLine) {
-                            break; // 遇到製作人員，停止處理
-                        }
-
-                        // 匹配格式：角色名：配音員名
-                        if (preg_match('/^([^：:]+)[：:](.+)$/', $line, $match)) {
-                            $character = trim($match[1]);
-                            $actor = trim($match[2]);
-
-                            // 確保不包含製作相關詞彙
-                            $containsStaffKeyword = false;
-                            foreach ($staffKeywords as $keyword) {
-                                if (mb_strpos($character, $keyword) !== false || mb_strpos($actor, $keyword) !== false) {
-                                    $containsStaffKeyword = true;
-                                    break;
-                                }
-                            }
-
-                            // 進一步驗證：配音員名字不應該太長（避免把多個配音員擠在一起）
-                            $actorTooLong = mb_strlen($actor) > 50;
-
-                            if (!$containsStaffKeyword && !$actorTooLong && mb_strlen($character) > 0 && mb_strlen($actor) > 0) {
-                                // 清理 UTF-8 編碼
-                                $character = $this->cleanUtf8($character);
-                                $actor = $this->cleanUtf8($actor);
-
-                                $voiceActors[] = [
-                                    'character' => $character,
-                                    'actor' => $actor
-                                ];
-                            } elseif ($actorTooLong) {
-                                Log::warning('配音員名字過長，可能是數據格式問題', [
-                                    'character' => mb_substr($character, 0, 20),
-                                    'actor_length' => mb_strlen($actor),
-                                    'actor_preview' => mb_substr($actor, 0, 50)
-                                ]);
-                            }
+                        if (!$hasStaff && mb_strlen($actor) <= 50 && mb_strlen($character) > 0 && mb_strlen($actor) > 0) {
+                            $voiceActors[] = [
+                                'character' => $this->cleanUtf8($character),
+                                'actor'     => $this->cleanUtf8($actor),
+                            ];
                         }
                     }
+                }
 
-                    if (!empty($voiceActors)) {
-                        Log::info('成功提取配音員', ['count' => count($voiceActors), 'first_3' => array_slice($voiceActors, 0, 3)]);
-                        break;
-                    }
+                if (!empty($voiceActors)) {
+                    Log::info('文字解析成功提取配音員', ['count' => count($voiceActors)]);
+                    break;
                 }
             }
 
@@ -1535,6 +1458,32 @@ class AnimeScraper
         } catch (\Exception $e) {
             Log::error('配音員提取失敗', ['message' => $e->getMessage()]);
             return null;
+        }
+    }
+
+    /**
+     * 提取文字並在區塊元素之間保留換行符
+     * 解決 ->text() 把所有元素拼在一行的問題
+     */
+    private function getTextWithNewlines(Crawler $container): string
+    {
+        try {
+            $html = $container->html();
+            // 將 <br> 轉換為換行
+            $html = preg_replace('/<br\s*\/?>/iu', "\n", $html);
+            // 在區塊元素結束標籤後加換行（不包含 span，避免破壞行內格式）
+            $html = preg_replace('/<\/(?:li|p|div|tr|td|h[1-6])\s*>/iu', "\n", $html);
+            // 移除剩餘 HTML 標籤
+            $text = strip_tags($html);
+            // 解碼 HTML 實體
+            $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            // 把空白字元（Tab、多個空格）合併，但保留換行
+            $text = preg_replace('/[^\S\n]+/', ' ', $text);
+            // 合併多個連續換行
+            $text = preg_replace('/\n{2,}/', "\n", $text);
+            return trim($text);
+        } catch (\Exception $e) {
+            return $container->text();
         }
     }
 
@@ -1638,85 +1587,90 @@ class AnimeScraper
     private function extractStaff(Crawler $container)
     {
         try {
-            $text = $container->text();
             $staff = [];
 
-            // 尋找製作人員區域 - 從"原作"或"Staff"開始，到"主題曲"或其他分隔標記結束
+            // 方法1（優先）: 使用 CSS 選擇器直接從結構化 HTML 提取
+            // acgsecrets.hk 的製作人員格式：
+            // <div class="anime_staff">
+            //   <div class="anime_person">
+            //     <span class="type">職位</span>：<span class="entities">姓名</span>
+            //   </div>
+            // </div>
+            $staffItems = $container->filter('.anime_staff .anime_person');
+
+            if ($staffItems->count() > 0) {
+                $staffItems->each(function (Crawler $item) use (&$staff) {
+                    $typeNode = $item->filter('span.type');
+                    $entitiesNode = $item->filter('span.entities');
+
+                    if ($typeNode->count() > 0 && $entitiesNode->count() > 0) {
+                        $position = trim($typeNode->text());
+                        $name     = trim($entitiesNode->text());
+
+                        if (!empty($position) && !empty($name)) {
+                            $staff[] = [
+                                'position' => $this->cleanUtf8($position),
+                                'name'     => $this->cleanUtf8($name),
+                            ];
+                        }
+                    }
+                });
+
+                if (!empty($staff)) {
+                    Log::info('CSS選擇器成功提取製作人員', ['count' => count($staff)]);
+                    return $staff;
+                }
+            }
+
+            // 方法2（備用）: 文字解析
+            $text = $this->getTextWithNewlines($container);
+            $staffKeywords = ['原作', '導演', '劇本統籌', '劇本', '編劇', '監督', '設計', '音樂', '製作', '攝影', '剪接', '音效', '統籌', '作畫', '3D'];
             $patterns = [
                 '/(?:製作人員|Staff)[：:\s]*\n?(.*?)(?=(?:主題曲|OP[：:]|ED[：:]|外部連結|播放平台|©))/us',
                 '/(?:原作[：:])(.*?)(?=(?:主題曲|OP[：:]|ED[：:]|外部連結|播放平台|©))/us',
             ];
 
             foreach ($patterns as $pattern) {
-                if (preg_match($pattern, $text, $matches)) {
-                    $staffText = trim($matches[1]);
+                if (!preg_match($pattern, $text, $matches)) continue;
 
-                    // 如果使用第二個模式，需要包含"原作"這一行
-                    if (strpos($pattern, '原作[：:]') !== false) {
-                        // 找到原作的位置
-                        $pos = mb_strpos($text, '原作');
-                        if ($pos !== false) {
-                            $endPatterns = ['主題曲', 'OP：', 'ED：', '外部連結', '播放平台', '©'];
-                            $endPos = mb_strlen($text);
-                            foreach ($endPatterns as $endPattern) {
-                                $tempPos = mb_strpos($text, $endPattern, $pos);
-                                if ($tempPos !== false && $tempPos < $endPos) {
-                                    $endPos = $tempPos;
-                                }
-                            }
-                            $staffText = mb_substr($text, $pos, $endPos - $pos);
+                $staffText = trim($matches[1]);
+                if (strpos($pattern, '原作[：:]') !== false) {
+                    $pos = mb_strpos($text, '原作');
+                    if ($pos !== false) {
+                        $endPos = mb_strlen($text);
+                        foreach (['主題曲', 'OP：', 'ED：', '外部連結', '播放平台', '©'] as $ep) {
+                            $tp = mb_strpos($text, $ep, $pos);
+                            if ($tp !== false && $tp < $endPos) $endPos = $tp;
+                        }
+                        $staffText = mb_substr($text, $pos, $endPos - $pos);
+                    }
+                }
+
+                foreach (preg_split('/\n+/', $staffText) as $line) {
+                    $line = trim($line);
+                    if (empty($line)) continue;
+
+                    if (preg_match('/^([^：:]+)[：:](.+)$/', $line, $match)) {
+                        $position = trim($match[1]);
+                        $name     = trim($match[2]);
+
+                        $isStaff = false;
+                        foreach ($staffKeywords as $kw) {
+                            if (mb_strpos($position, $kw) !== false) { $isStaff = true; break; }
+                        }
+
+                        if ($isStaff && mb_strlen($position) > 1 && mb_strlen($name) > 1) {
+                            $staff[] = [
+                                'position' => $this->cleanUtf8($position),
+                                'name'     => $this->cleanUtf8($name),
+                            ];
                         }
                     }
+                }
 
-                    // 分行處理
-                    $lines = preg_split('/\n+/', $staffText);
-
-                    foreach ($lines as $line) {
-                        $line = trim($line);
-                        if (empty($line)) continue;
-
-                        // 匹配格式：職位：人名
-                        if (preg_match('/^([^：:]+)[：:](.+)$/', $line, $match)) {
-                            $position = trim($match[1]);
-                            $name = trim($match[2]);
-
-                            // 檢查是否包含製作相關關鍵字
-                            $staffKeywords = ['原作', '導演', '劇本統籌', '劇本', '編劇', '監督', '設計', '音樂', '製作', '攝影', '剪接', '音效', '統籌', '作畫', '3D'];
-                            $isStaff = false;
-                            foreach ($staffKeywords as $keyword) {
-                                if (mb_strpos($position, $keyword) !== false) {
-                                    $isStaff = true;
-                                    break;
-                                }
-                            }
-
-                            // 排除配音員（通常包含角色標記）
-                            $characterKeywords = ['／', '/', '号'];
-                            $hasCharacter = false;
-                            foreach ($characterKeywords as $keyword) {
-                                if (mb_strpos($position, $keyword) !== false) {
-                                    $hasCharacter = true;
-                                    break;
-                                }
-                            }
-
-                            if ($isStaff && !$hasCharacter && mb_strlen($position) > 1 && mb_strlen($name) > 1) {
-                                // 清理 UTF-8 編碼
-                                $position = $this->cleanUtf8($position);
-                                $name = $this->cleanUtf8($name);
-
-                                $staff[] = [
-                                    'position' => $position,
-                                    'name' => $name
-                                ];
-                            }
-                        }
-                    }
-
-                    if (!empty($staff)) {
-                        Log::info('成功提取製作人員', ['count' => count($staff), 'staff' => $staff]);
-                        break;
-                    }
+                if (!empty($staff)) {
+                    Log::info('文字解析成功提取製作人員', ['count' => count($staff)]);
+                    break;
                 }
             }
 
