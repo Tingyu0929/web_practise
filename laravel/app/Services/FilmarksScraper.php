@@ -41,16 +41,15 @@ class FilmarksScraper
 
             $voiceActors = $this->extractVoiceActors($crawler);
             $staff = $this->extractStaff($crawler);
-
             Log::info("Filmarks data fetched", [
                 'url' => $filmarksUrl,
                 'voice_actors_count' => count($voiceActors),
-                'staff_count' => count($staff)
+                'staff_count' => count($staff),
             ]);
 
             return [
                 'voice_actors' => $voiceActors,
-                'staff' => $staff
+                'staff'        => $staff,
             ];
 
         } catch (\Exception $e) {

@@ -339,36 +339,37 @@ class AnimeScraper
         // 提取 Filmarks URL：優先使用詳細頁面的，如果沒有就直接在容器中提取
         $filmarksUrl = $detailData['filmarks_url'] ?? $this->extractFilmarksUrl($container);
 
-        // 檢查配音員和製作人員資料品質
-        // 如果配音員只有1個且內容很長(>100字元),視為無效資料
+        // 配音員資料品質檢查：只有1筆且 actor 超長視為無效
         $voiceActorsInvalid = !empty($voiceActors) &&
                                count($voiceActors) === 1 &&
                                isset($voiceActors[0]['actor']) &&
                                mb_strlen($voiceActors[0]['actor']) > 100;
 
-        $shouldFetchFromFilmarks = !empty($filmarksUrl) &&
-                                   (empty($staff) || empty($voiceActors) || $voiceActorsInvalid);
+        // 只要有 Filmarks URL 且配音員/製作人員缺資料才去抓（避免不必要的 HTTP 請求）
+        if (!empty($filmarksUrl) && FilmarksScraper::isValidFilmarksUrl($filmarksUrl) &&
+            (empty($voiceActors) || $voiceActorsInvalid || empty($staff))) {
+            Log::info('從 Filmarks 補充資料', ['url' => $filmarksUrl]);
 
-        // 如果配音員或製作人員為空/無效，且有 Filmarks URL，嘗試從 Filmarks 抓取
-        if ($shouldFetchFromFilmarks) {
-            if (FilmarksScraper::isValidFilmarksUrl($filmarksUrl)) {
-                Log::info('從 Filmarks 補充資料（列表頁）', [
-                    'url' => $filmarksUrl,
-                    'reason' => $voiceActorsInvalid ? 'voice_actors_invalid' : 'data_empty'
-                ]);
+            $filmarksScraper = new FilmarksScraper();
+            $filmarksData = $filmarksScraper->fetchStaffAndActors($filmarksUrl);
 
-                $filmarksScraper = new FilmarksScraper();
-                $filmarksData = $filmarksScraper->fetchStaffAndActors($filmarksUrl);
+            if ((empty($voiceActors) || $voiceActorsInvalid) && !empty($filmarksData['voice_actors'])) {
+                $voiceActors = $filmarksData['voice_actors'];
+                Log::info('已從 Filmarks 補充配音員', ['count' => count($filmarksData['voice_actors'])]);
+            }
+            if (empty($staff) && !empty($filmarksData['staff'])) {
+                $staff = $filmarksData['staff'];
+                Log::info('已從 Filmarks 補充製作人員', ['count' => count($filmarksData['staff'])]);
+            }
+        }
 
-                // 只在資料為空或無效時補充
-                if ((empty($voiceActors) || $voiceActorsInvalid) && !empty($filmarksData['voice_actors'])) {
-                    $voiceActors = $filmarksData['voice_actors'];
-                    Log::info('已從 Filmarks 補充配音員', ['count' => count($filmarksData['voice_actors'])]);
-                }
-                if (empty($staff) && !empty($filmarksData['staff'])) {
-                    $staff = $filmarksData['staff'];
-                    Log::info('已從 Filmarks 補充製作人員', ['count' => count($filmarksData['staff'])]);
-                }
+        // 根據開播日期推算播放狀況
+        // 季番通常播 3~4 個月，超過 4 個月未更新視為完結
+        $broadcastStatus = 'airing';
+        if (!empty($releaseDate)) {
+            $endEstimate = date('Y-m-d', strtotime($releaseDate . ' +4 months'));
+            if ($endEstimate < date('Y-m-d')) {
+                $broadcastStatus = 'finished';
             }
         }
 
@@ -408,6 +409,7 @@ class AnimeScraper
             'video_links' => $videoLinks,
             'staff' => $staff,
             'external_links' => $externalLinks,
+            'broadcast_status' => $broadcastStatus,
         ];
 
     } catch (\Exception $e) {
@@ -798,7 +800,7 @@ class AnimeScraper
                         'video_links' => $data['video_links'] ?? null,
                         'staff' => $data['staff'] ?? null,
                         'external_links' => $data['external_links'] ?? null,
-                        'status' => 'active'
+                        'status' => $data['broadcast_status'] ?? 'airing',
                     ]);
                     $newAnimes++;
 
@@ -827,6 +829,7 @@ class AnimeScraper
                         'video_links' => $data['video_links'] ?? $anime->video_links,
                         'staff' => $data['staff'] ?? $anime->staff,
                         'external_links' => $data['external_links'] ?? $anime->external_links,
+                        'status' => $data['broadcast_status'] ?? $anime->status,
                     ]);
                     $updatedAnimes++;
 
@@ -1337,21 +1340,34 @@ class AnimeScraper
     private function extractWeeklySchedule(Crawler $container)
     {
         try {
-            $text = $container->text();
+            // 方法1（優先）: 直接從 .time_today.main_time 取排程
+            // 格式: "2025年4月8日起／每週二深夜／24時29分"
+            // 只取日期後面的部分 → "每週二深夜 24時29分"
+            $timeNode = $container->filter('.time_today.main_time');
+            if ($timeNode->count() > 0) {
+                $full = trim($timeNode->first()->text());
+                // 以 ／ 或 / 分割，去掉第一段日期，只保留排程部分
+                $parts = preg_split('/[／\/]/u', $full);
+                $scheduleParts = array_values(array_filter(
+                    array_slice($parts, 1),
+                    fn($p) => !empty(trim($p))
+                ));
+                if (!empty($scheduleParts)) {
+                    return implode(' ', array_map('trim', $scheduleParts));
+                }
+            }
 
-            // 匹配模式：每週X 時間, 星期X 時間, 週X 時間等
+            // 方法2（備用）: 從文字中用 regex 找排程
+            $text = $container->text();
             $patterns = [
+                '/每[週周]([一二三四五六日天])[深凌]?夜?\s*[\/／]?\s*(\d{1,2}時\d{2}分)/',
                 '/每[週周]([一二三四五六日天])[\s]*([\d]{1,2}[:：][\d]{2})/',
                 '/星期([一二三四五六日天])[\s]*([\d]{1,2}[:：][\d]{2})/',
-                '/週([一二三四五六日])[\s]*([\d]{1,2}[:：][\d]{2})/',
-                '/([一二三四五六日天])[\s]*([\d]{1,2}[:：][\d]{2})更新/',
             ];
 
             foreach ($patterns as $pattern) {
                 if (preg_match($pattern, $text, $matches)) {
-                    $day = $matches[1];
-                    $time = str_replace('：', ':', $matches[2]);
-                    return "每週{$day} {$time}";
+                    return "每週{$matches[1]} {$matches[2]}";
                 }
             }
 
