@@ -11,6 +11,13 @@ export default defineConfig({
       'acg.404-studio.work',
       'localhost',
       '127.0.0.1'
-    ]
+    ],
+    // 本地開發 (不用 Docker) 時，代理 /api 到 Laravel
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
+      }
+    }
   }
 })

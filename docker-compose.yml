@@ -52,8 +52,9 @@ services:
       - ./laravel:/var/www/html
       - ./laravel/storage:/var/www/html/storage
       - ./laravel/bootstrap/cache:/var/www/html/bootstrap/cache
-    ports:
-      - "2096:8000"
+    # 不對外暴露 port，只在內部網路供 Nginx 存取
+    expose:
+      - "8000"
     depends_on:
       mysql:
         condition: service_healthy
@@ -87,17 +88,31 @@ services:
     volumes:
       - ./acg-fronted:/app
       - /app/node_modules
-    ports:
-      - "8880:5173"
+    # 不對外暴露 port，由 gateway Nginx 代理
+    expose:
+      - "5173"
     networks:
       - animation_network
-    environment:
-      VITE_API_BASE_URL: https://acg-api.404-studio.work
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5173"]
       interval: 30s
       timeout: 10s
       retries: 3
+
+  # Nginx Gateway (統一入口，隱藏後端位置)
+  gateway:
+    image: nginx:alpine
+    container_name: animation_web_gateway
+    restart: unless-stopped
+    ports:
+      - "8880:80"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - laravel
+      - frontend
+    networks:
+      - animation_network
 
   # 定時爬蟲排程器
   scheduler:
